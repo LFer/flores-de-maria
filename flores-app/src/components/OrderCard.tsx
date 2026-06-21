@@ -29,6 +29,13 @@ function paymentLabel(order: Order): string {
   return 'Cobro pendiente';
 }
 
+// Map a delivery/payment status to the Chip tone.
+function statusTone(status: 'pending' | 'partial' | 'delivered' | 'paid'): 'done' | 'partial' | 'pending' {
+  if (status === 'delivered' || status === 'paid') return 'done';
+  if (status === 'partial') return 'partial';
+  return 'pending';
+}
+
 type Props = {
   order: Order;
   onRegisterDelivery: () => void;
@@ -61,14 +68,8 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Prop
       </View>
 
       <View style={styles.chips}>
-        <Chip
-          label={deliveryLabel(order)}
-          tone={deliveryDone ? 'done' : 'pending'}
-        />
-        <Chip
-          label={paymentLabel(order)}
-          tone={paymentDone ? 'done' : 'pending'}
-        />
+        <Chip label={deliveryLabel(order)} tone={statusTone(order.deliveryStatus)} />
+        <Chip label={paymentLabel(order)} tone={statusTone(order.paymentStatus)} />
       </View>
 
       <View style={styles.actions}>

@@ -3,15 +3,21 @@ import { Pressable, View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 
-type Tone = 'done' | 'pending';
+type Tone = 'done' | 'partial' | 'pending';
 
-// Status pill with a leading dot — green when done, rose when pending.
+const TONES: Record<Tone, { bg: string; dot: string; text: string }> = {
+  done: { bg: colors.sageBgSoft, dot: colors.sage, text: colors.sageDeep },
+  partial: { bg: colors.amberBg, dot: colors.amberSoft, text: colors.amber },
+  pending: { bg: colors.petalBgSoft, dot: colors.petalSoft, text: colors.roseText },
+};
+
+// Status pill with a leading dot — green when done, amber when partial, rose when pending.
 export function Chip({ label, tone, onPress }: { label: string; tone: Tone; onPress?: () => void }) {
-  const done = tone === 'done';
+  const c = TONES[tone];
   return (
-    <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: done ? colors.sageBgSoft : colors.petalBgSoft }]}>
-      <View style={[styles.dot, { backgroundColor: done ? colors.sage : colors.petalSoft }]} />
-      <Text style={[styles.label, { color: done ? colors.sageDeep : colors.roseText }]}>{label}</Text>
+    <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: c.bg }]}>
+      <View style={[styles.dot, { backgroundColor: c.dot }]} />
+      <Text style={[styles.label, { color: c.text }]}>{label}</Text>
     </Pressable>
   );
 }

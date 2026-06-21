@@ -3,7 +3,9 @@
 // representative set spanning the four movement types.
 import type { Order, Expense, CashMovement } from '../../types';
 
-const orderItems = (chica: number, grande: number, delivered = false) => [
+type ItemOpts = { delivered?: boolean; paidChica?: number; paidGrande?: number };
+
+const orderItems = (chica: number, grande: number, opts: ItemOpts = {}) => [
   ...(chica > 0
     ? [
         {
@@ -12,7 +14,8 @@ const orderItems = (chica: number, grande: number, delivered = false) => [
           quantity: chica,
           unitPrice: 250,
           total: chica * 250,
-          deliveredQuantity: delivered ? chica : 0,
+          deliveredQuantity: opts.delivered ? chica : 0,
+          paidQuantity: opts.paidChica ?? 0,
         },
       ]
     : []),
@@ -24,7 +27,8 @@ const orderItems = (chica: number, grande: number, delivered = false) => [
           quantity: grande,
           unitPrice: 450,
           total: grande * 450,
-          deliveredQuantity: delivered ? grande : 0,
+          deliveredQuantity: opts.delivered ? grande : 0,
+          paidQuantity: opts.paidGrande ?? 0,
         },
       ]
     : []),
@@ -37,7 +41,7 @@ export const seedOrders: Order[] = [
     chica: 1,
     grande: 0,
     assignee: 'María',
-    items: orderItems(1, 0, true),
+    items: orderItems(1, 0, { delivered: true, paidChica: 1 }),
     totalAmount: 250,
     paidAmount: 250,
     deliveryStatus: 'delivered',
@@ -51,7 +55,7 @@ export const seedOrders: Order[] = [
     chica: 0,
     grande: 1,
     assignee: 'Belén',
-    items: orderItems(0, 1, true),
+    items: orderItems(0, 1, { delivered: true }),
     totalAmount: 450,
     paidAmount: 0,
     deliveryStatus: 'delivered',
@@ -79,9 +83,9 @@ export const seedOrders: Order[] = [
     chica: 1,
     grande: 2,
     assignee: 'Belén',
-    items: orderItems(1, 2),
+    items: orderItems(1, 2, { paidGrande: 1 }),
     totalAmount: 1150,
-    paidAmount: 600,
+    paidAmount: 450,
     deliveryStatus: 'pending',
     paymentStatus: 'partial',
     deliveryMovements: [],
@@ -101,7 +105,7 @@ const now = Date.now();
 
 export const seedCashMovements: CashMovement[] = [
   { id: 'm1', type: 'order_payment', direction: 'in', amount: 250, description: 'Cobro pedido · Susana', orderId: 'o1', createdAt: now - 1 * DAY },
-  { id: 'm2', type: 'order_payment', direction: 'in', amount: 600, description: 'Cobro pedido · Carmelitas', orderId: 'o4', createdAt: now - 3 * DAY },
+  { id: 'm2', type: 'order_payment', direction: 'in', amount: 450, description: 'Cobro pedido · Carmelitas', orderId: 'o4', createdAt: now - 3 * DAY },
   { id: 'm3', type: 'expense', direction: 'out', amount: 480, description: 'Leche condensada · 6 latas', expenseId: 'e1', createdAt: now - 4 * DAY },
   { id: 'm4', type: 'parish_delivery', direction: 'out', amount: 500, description: 'Entrega a la parroquia', responsibleName: 'María', createdAt: now - 5 * DAY },
   { id: 'm5', type: 'order_payment', direction: 'in', amount: 750, description: 'Cobro pedido · Kiosco San José', createdAt: now - 7 * DAY },

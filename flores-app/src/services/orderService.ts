@@ -32,6 +32,7 @@ const CASH_COL = 'cash_movements';
 const mock = new MemoryCollection<Order>(seedOrders);
 
 type DeliveryInput = { itemId: string; quantity: number };
+type PaymentInput = { itemId: string; quantity: number };
 
 function isCurrentOrder(value: Order): boolean {
   return (
@@ -69,6 +70,7 @@ function buildItems(input: NewOrderInput, delivered: boolean): OrderItem[] {
       ...item,
       total: item.quantity * item.unitPrice,
       deliveredQuantity: delivered ? item.quantity : 0,
+      paidQuantity: input.cobrado ? item.quantity : 0,
     }));
 }
 
@@ -219,12 +221,27 @@ export const orderService = {
     });
   },
 
-  async registerPayment(id: string, amount: number): Promise<void> {
+  async registerPayment(id: string, paidItems: PaymentInput[]): Promise<void> {
     const order = await readOrder(id);
     if (!order || !isCurrentOrder(order)) return;
 
     const balance = order.totalAmount - order.paidAmount;
-    if (amount <= 0 || amount > balance) throw new Error('Invalid payment amount');
+    if (balance <= 0) throw new Error('Order already fully paid');
+
+    // Charge per item by quantity; the amount is derived from unit prices.
+    const quantities = new Map(paidItems.map((item) => [item.itemId, item.quantity]));
+    let amount = 0;
+    const items = order.items.map((item) => {
+      const quantity = quantities.get(item.id) ?? 0;
+      const alreadyPaid = item.paidQuantity ?? 0;
+      const pending = item.quantity - alreadyPaid;
+      if (quantity < 0 || quantity > pending) throw new Error('Invalid payment quantity');
+      amount += quantity * item.unitPrice;
+      return { ...item, paidQuantity: alreadyPaid + quantity };
+    });
+
+    if (amount <= 0) throw new Error('Payment amount must be positive');
+    if (amount > balance) throw new Error('Payment exceeds balance');
 
     const paidAmount = order.paidAmount + amount;
     const status = paymentStatus(order.totalAmount, paidAmount);
@@ -240,6 +257,7 @@ export const orderService = {
       });
       const batch = writeBatch(db);
       batch.update(doc(db, COL, id), {
+        items,
         paidAmount,
         paymentStatus: status,
         paymentMovementIds: [...order.paymentMovementIds, movementRef.id],
@@ -253,6 +271,7 @@ export const orderService = {
 
     const movementId = await cashService.createOrderPaymentMovement(order, amount);
     await patchOrder(id, {
+      items,
       paidAmount,
       paymentStatus: status,
       paymentMovementIds: [...order.paymentMovementIds, movementId],

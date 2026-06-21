@@ -11,7 +11,7 @@ import { OrderCard } from '../components/OrderCard';
 import { Fab } from '../components/Fab';
 import { NuevoPedidoSheet } from './NuevoPedidoSheet';
 import { BottomSheet } from '../components/BottomSheet';
-import { Label, Input, PrimaryButton } from '../components/ui';
+import { PrimaryButton } from '../components/ui';
 import { Stepper } from '../components/Stepper';
 import { orderService } from '../services';
 import type { Order } from '../types';
@@ -199,13 +199,13 @@ function DeliverySheet({ order, visible, onClose }: { order: Order | null; visib
 }
 
 function PaymentSheet({ order, visible, onClose }: { order: Order | null; visible: boolean; onClose: () => void }) {
-  const [amount, setAmount] = useState('');
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!visible || !order) return;
-    setAmount(String(paymentBalance(order)));
+    setQuantities(Object.fromEntries(order.items.map((item) => [item.id, 0])));
     setError(null);
     setBusy(false);
   }, [visible, order]);
@@ -213,25 +213,36 @@ function PaymentSheet({ order, visible, onClose }: { order: Order | null; visibl
   if (!order) return null;
 
   const balance = paymentBalance(order);
+  const hasPending = order.items.some((item) => item.quantity - (item.paidQuantity ?? 0) > 0);
+  const amountNow = order.items.reduce((sum, item) => sum + (quantities[item.id] ?? 0) * item.unitPrice, 0);
+
+  const setItemQuantity = (itemId: string, next: number) => {
+    const item = order.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const pending = item.quantity - (item.paidQuantity ?? 0);
+    setQuantities((current) => ({ ...current, [itemId]: Math.min(pending, Math.max(0, next)) }));
+  };
 
   const onConfirm = async () => {
-    const parsed = parseInt(amount, 10);
-    if (balance <= 0) {
+    if (balance <= 0 || !hasPending) {
       setError('Este pedido ya está cobrado completo.');
       return;
     }
-    if (amount.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
-      setError('Ingresá un importe mayor a 0.');
+    if (amountNow <= 0) {
+      setError('Indicá al menos una caja para cobrar.');
       return;
     }
-    if (parsed > balance) {
-      setError('El importe no puede superar el saldo pendiente.');
+    if (amountNow > balance) {
+      setError('El cobro no puede superar el saldo pendiente.');
       return;
     }
     setError(null);
     setBusy(true);
     try {
-      await orderService.registerPayment(order.id, parsed);
+      await orderService.registerPayment(
+        order.id,
+        order.items.map((item) => ({ itemId: item.id, quantity: quantities[item.id] ?? 0 })),
+      );
       onClose();
     } catch {
       setError('No pudimos registrar el cobro. Probá de nuevo.');
@@ -258,14 +269,31 @@ function PaymentSheet({ order, visible, onClose }: { order: Order | null; visibl
           <AmountCell label="Saldo" value={formatARS(balance)} emphasized />
         </View>
 
-        <View style={styles.field}>
-          <Label>Importe a cobrar ahora</Label>
-          <Input
-            value={amount}
-            onChangeText={(text) => setAmount(text.replace(/\D/g, ''))}
-            keyboardType="number-pad"
-            placeholder="$0"
-          />
+        <View style={{ gap: 10 }}>
+          {order.items.map((item) => {
+            const pending = item.quantity - (item.paidQuantity ?? 0);
+            const value = quantities[item.id] ?? 0;
+            return (
+              <View key={item.id} style={styles.itemRow}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemMeta}>
+                    Pedido {item.quantity} · Cobrado {item.paidQuantity ?? 0} · Pendiente {pending}
+                  </Text>
+                </View>
+                <Stepper
+                  value={value}
+                  onDec={() => setItemQuantity(item.id, value - 1)}
+                  onInc={() => setItemQuantity(item.id, value + 1)}
+                />
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total a cobrar ahora</Text>
+          <Text style={styles.totalValue}>{formatARS(amountNow)}</Text>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -336,6 +364,13 @@ const styles = StyleSheet.create({
   },
   amountLabel: { fontSize: 11.5, fontFamily: fonts.sansBold, letterSpacing: 1, textTransform: 'uppercase', color: colors.olive },
   amountValue: { fontSize: 20, fontFamily: fonts.sansExtra, color: colors.ink },
-  field: { gap: 8 },
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  totalLabel: { fontSize: 13, fontFamily: fonts.sansSemi, color: colors.inkSoft },
+  totalValue: { fontSize: 18, fontFamily: fonts.sansExtra, color: colors.rose },
   error: { color: colors.rose, fontFamily: fonts.sansSemi, fontSize: 13 },
 });

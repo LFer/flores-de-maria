@@ -23,6 +23,10 @@ export const colors = {
   sageDeep: '#6E7C49',
   olive: '#A2A77F', // uppercase labels
 
+  // amber (warm "in progress" / partial state)
+  amber: '#B6883C',
+  amberSoft: '#D2A75E',
+
   // neutrals
   stone: '#8A857E',
   stoneDeep: '#5A5550',
@@ -40,6 +44,7 @@ export const colors = {
   petalBgFaint: 'rgba(231,167,177,0.22)',
   sageBg: 'rgba(151,165,108,0.26)',
   sageBgSoft: 'rgba(151,165,108,0.16)',
+  amberBg: 'rgba(198,150,79,0.20)',
 
   overlay: 'rgba(45,42,40,0.42)',
 } as const;

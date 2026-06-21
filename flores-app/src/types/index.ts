@@ -19,6 +19,7 @@ export interface OrderItem {
   unitPrice: number;
   total: number;
   deliveredQuantity: number;
+  paidQuantity?: number; // cajas cobradas de esta línea (cobro por ítem)
 }
 
 export interface DeliveryMovementItem {
