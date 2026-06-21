@@ -1,0 +1,100 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from '../theme/colors';
+import { fonts } from '../theme/fonts';
+import { FlowerLogo } from '../components/Flower';
+import { Label, Input, PrimaryButton } from '../components/ui';
+import { useAuth } from '../lib/auth';
+
+export function LoginScreen() {
+  const insets = useSafeAreaInsets();
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState('maria.flores@gmail.com');
+  const [password, setPassword] = useState('mariaflores');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const onSubmit = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await signIn(email.trim(), password);
+    } catch (e: any) {
+      setError(e?.message ?? 'No pudimos iniciar sesión.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.root, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 28 }]}
+    >
+      {/* logo block */}
+      <View style={styles.logoBlock}>
+        <FlowerLogo size={78} />
+        <Text style={styles.brand}>Flores de María</Text>
+        <View style={styles.tagRow}>
+          <View style={styles.tagLine} />
+          <Text style={styles.tag}>Sólo Dios basta</Text>
+          <View style={styles.tagLine} />
+        </View>
+      </View>
+
+      {/* form */}
+      <View style={styles.form}>
+        <View style={styles.field}>
+          <Label>Email</Label>
+          <Input
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+          />
+        </View>
+        <View style={styles.field}>
+          <Label>Contraseña</Label>
+          <Input value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
+        </View>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <PrimaryButton label={busy ? 'Ingresando…' : 'Ingresar'} onPress={onSubmit} disabled={busy} style={{ marginTop: 6 }} />
+      </View>
+
+      {/* footer */}
+      <Pressable style={styles.footer}>
+        <Text style={styles.footerText}>
+          ¿No tenés cuenta? <Text style={styles.footerLink}>Crear cuenta</Text>
+        </Text>
+      </Pressable>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 34,
+    justifyContent: 'space-between',
+  },
+  logoBlock: { alignItems: 'center' },
+  brand: {
+    fontFamily: fonts.serifSemi,
+    fontSize: 38,
+    color: colors.ink,
+    letterSpacing: 0.5,
+    marginTop: 14,
+  },
+  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  tagLine: { width: 22, height: 1, backgroundColor: colors.hairline },
+  tag: { fontFamily: fonts.serifMediumItalic, fontSize: 17, color: colors.sage, letterSpacing: 0.5 },
+  form: { gap: 18 },
+  field: { gap: 8 },
+  error: { color: colors.rose, fontFamily: fonts.sansSemi, fontSize: 13 },
+  footer: { alignItems: 'center' },
+  footerText: { fontSize: 14, fontFamily: fonts.sans, color: colors.inkSoft },
+  footerLink: { color: colors.rose, fontFamily: fonts.sansBold },
+});

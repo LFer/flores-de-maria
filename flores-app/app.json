@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Flores de María",
+    "slug": "flores-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6F3EE",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.floresdemaria.app"
+    },
+    "android": {
+      "package": "com.floresdemaria.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F6F3EE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permití el acceso a tus fotos para adjuntar el comprobante de un gasto."
+        }
+      ]
+    ]
+  }
+}
