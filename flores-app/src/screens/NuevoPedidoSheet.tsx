@@ -53,6 +53,10 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
 
   const onSave = async () => {
     const amount = parseInt(importe, 10);
+    if (chica + grande <= 0) {
+      setError('Agregá al menos una caja al pedido.');
+      return;
+    }
     if (importe.trim() === '' || !Number.isFinite(amount) || amount < 0) {
       setError('Ingresá un importe válido (mayor o igual a 0).');
       return;

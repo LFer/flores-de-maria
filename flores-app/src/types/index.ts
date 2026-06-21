@@ -5,27 +5,70 @@ export type Assignee = 'María' | 'Belén';
 // Box pricing (ARS). Matches the prototype: chica $250, grande $450.
 export const PRICE = { chica: 250, grande: 450 } as const;
 
-// Manual `amount` (the editable "Importe") overrides the box-derived suggestion.
-export function orderAmount(o: Pick<Order, 'chica' | 'grande' | 'amount'>): number {
-  return o.amount ?? o.chica * PRICE.chica + o.grande * PRICE.grande;
+export function orderAmount(o: Pick<Order, 'totalAmount'>): number {
+  return o.totalAmount;
+}
+
+export type DeliveryStatus = 'pending' | 'partial' | 'delivered';
+export type PaymentStatus = 'pending' | 'partial' | 'paid';
+
+export interface OrderItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  deliveredQuantity: number;
+}
+
+export interface DeliveryMovementItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+}
+
+export interface DeliveryMovement {
+  id: string;
+  createdAt: number;
+  createdBy?: string | null;
+  items: DeliveryMovementItem[];
 }
 
 export interface Order {
   id: string;
   name: string; // cliente
-  chica: number; // # cajas chicas (16 brigadeiros)
-  grande: number; // # cajas grandes (30 brigadeiros)
+  assignee: Assignee;
+  items: OrderItem[];
+  totalAmount: number;
+  paidAmount: number;
+  deliveryStatus: DeliveryStatus;
+  paymentStatus: PaymentStatus;
+  deliveryMovements: DeliveryMovement[];
+  paymentMovementIds: string[];
+  entrega?: string; // delivery date label, e.g. "20 jun"
+  nota?: string;
+  createdAt?: number;
+  // Legacy fields from the first boolean-based order model. New UI and writes
+  // use the item/status model above; these remain optional during transition.
+  chica?: number;
+  grande?: number;
+  amount?: number;
+  entregado?: boolean;
+  cobrado?: boolean;
+  paymentMovementId?: string | null;
+}
+
+export type NewOrderInput = {
+  name: string;
+  chica: number;
+  grande: number;
   assignee: Assignee;
   entregado: boolean;
   cobrado: boolean;
-  entrega?: string; // delivery date label, e.g. "20 jun"
+  entrega?: string;
   nota?: string;
-  amount?: number; // manual "Importe"; overrides the box-derived calc
-  paymentMovementId?: string | null; // cash_movements doc created when cobrado
-  createdAt?: number;
-}
-
-export type NewOrderInput = Omit<Order, 'id' | 'createdAt' | 'paymentMovementId'>;
+  amount?: number;
+};
 
 export interface Expense {
   id: string;

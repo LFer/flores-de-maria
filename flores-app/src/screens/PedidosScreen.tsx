@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -9,70 +9,50 @@ import { FlowerMark } from '../components/Flower';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { OrderCard } from '../components/OrderCard';
 import { Fab } from '../components/Fab';
-import { Toast } from '../components/Toast';
 import { NuevoPedidoSheet } from './NuevoPedidoSheet';
+import { BottomSheet } from '../components/BottomSheet';
+import { Label, Input, PrimaryButton } from '../components/ui';
+import { Stepper } from '../components/Stepper';
 import { orderService } from '../services';
-import { orderAmount, type Order } from '../types';
+import type { Order } from '../types';
 import { formatARS } from '../lib/format';
 import { CURRENT_USER } from '../lib/constants';
 
 type Filter = 'todos' | 'mios';
-type ToastState = { message: string; revert: () => void } | null;
+
+const paymentBalance = (order: Order): number => Math.max(0, order.totalAmount - order.paidAmount);
 
 export function PedidosScreen() {
   const insets = useSafeAreaInsets();
   const tabH = useBottomTabBarHeight();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<Filter>('todos');
-  const [toast, setToast] = useState<ToastState>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [deliverySheetOpen, setDeliverySheetOpen] = useState(false);
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
 
   useEffect(() => orderService.subscribe(setOrders), []);
-  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
-  const flashToast = (message: string, revert: () => void) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ message, revert });
-    toastTimer.current = setTimeout(() => setToast(null), 4500);
+  const openDelivery = (order: Order) => {
+    setSelectedOrder(order);
+    setDeliverySheetOpen(true);
   };
 
-  const setField = (id: string, field: 'entregado' | 'cobrado', value: boolean) =>
-    field === 'entregado' ? orderService.setEntrega(id, value) : orderService.setCobro(id, value);
-
-  const toggleField = (o: Order, field: 'entregado' | 'cobrado') => {
-    const next = !o[field];
-    setField(o.id, field, next);
-    flashToast(field === 'entregado' ? 'Entrega actualizada' : 'Cobro actualizado', () =>
-      setField(o.id, field, !next),
-    );
+  const openPayment = (order: Order) => {
+    setSelectedOrder(order);
+    setPaymentSheetOpen(true);
   };
 
-  const marcarAmbos = (o: Order) => {
-    const prev = { entregado: o.entregado, cobrado: o.cobrado };
-    orderService.setEntrega(o.id, true);
-    orderService.setCobro(o.id, true);
-    flashToast('Entregado y cobrado', () => {
-      orderService.setEntrega(o.id, prev.entregado);
-      orderService.setCobro(o.id, prev.cobrado);
-    });
-  };
-
-  const undo = () => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toast?.revert();
-    setToast(null);
-  };
-
-  const pendientes = orders.filter((o) => !o.cobrado);
-  const totalPendiente = pendientes.reduce((s, o) => s + orderAmount(o), 0);
-  const visible = filter === 'mios' ? orders.filter((o) => o.assignee === CURRENT_USER) : orders;
+  const pendingPaymentOrders = orders.filter((order) => paymentBalance(order) > 0);
+  const totalPendiente = pendingPaymentOrders.reduce((sum, order) => sum + paymentBalance(order), 0);
+  const visible = filter === 'mios' ? orders.filter((order) => order.assignee === CURRENT_USER) : orders;
 
   return (
     <View style={styles.root}>
       <FlatList
         data={visible}
-        keyExtractor={(o) => o.id}
+        keyExtractor={(order) => order.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 96 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
@@ -85,7 +65,7 @@ export function PedidosScreen() {
             <View style={[styles.summary, cardShadow]}>
               <View style={{ gap: 3 }}>
                 <Text style={styles.summaryLabel}>Pendiente de cobro</Text>
-                <Text style={styles.summarySub}>{pendientes.length} pedidos sin cobrar</Text>
+                <Text style={styles.summarySub}>{pendingPaymentOrders.length} pedidos con saldo</Text>
               </View>
               <Text style={styles.summaryAmount}>{formatARS(totalPendiente)}</Text>
             </View>
@@ -106,17 +86,199 @@ export function PedidosScreen() {
         renderItem={({ item }) => (
           <OrderCard
             order={item}
-            onToggleEntrega={() => toggleField(item, 'entregado')}
-            onToggleCobro={() => toggleField(item, 'cobrado')}
-            onMarcarAmbos={() => marcarAmbos(item)}
+            onRegisterDelivery={() => openDelivery(item)}
+            onRegisterPayment={() => openPayment(item)}
           />
         )}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
       />
 
-      {toast && <Toast message={toast.message} onUndo={undo} bottom={tabH + 16} />}
-      <Fab onPress={() => setSheetOpen(true)} bottom={tabH + 18} />
-      <NuevoPedidoSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <Fab onPress={() => setNewOrderOpen(true)} bottom={tabH + 18} />
+      <NuevoPedidoSheet visible={newOrderOpen} onClose={() => setNewOrderOpen(false)} />
+      <DeliverySheet
+        order={selectedOrder}
+        visible={deliverySheetOpen}
+        onClose={() => setDeliverySheetOpen(false)}
+      />
+      <PaymentSheet
+        order={selectedOrder}
+        visible={paymentSheetOpen}
+        onClose={() => setPaymentSheetOpen(false)}
+      />
+    </View>
+  );
+}
+
+function DeliverySheet({ order, visible, onClose }: { order: Order | null; visible: boolean; onClose: () => void }) {
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !order) return;
+    setQuantities(Object.fromEntries(order.items.map((item) => [item.id, 0])));
+    setError(null);
+    setBusy(false);
+  }, [visible, order]);
+
+  if (!order) return null;
+
+  const totalNow = Object.values(quantities).reduce((sum, value) => sum + value, 0);
+  const hasPending = order.items.some((item) => item.quantity - item.deliveredQuantity > 0);
+
+  const setItemQuantity = (itemId: string, next: number) => {
+    const item = order.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const pending = item.quantity - item.deliveredQuantity;
+    setQuantities((current) => ({ ...current, [itemId]: Math.min(pending, Math.max(0, next)) }));
+  };
+
+  const onConfirm = async () => {
+    if (!hasPending) {
+      setError('Este pedido ya está entregado completo.');
+      return;
+    }
+    if (totalNow <= 0) {
+      setError('Indicá al menos una caja para entregar.');
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await orderService.registerDelivery(
+        order.id,
+        order.items.map((item) => ({ itemId: item.id, quantity: quantities[item.id] ?? 0 })),
+      );
+      onClose();
+    } catch {
+      setError('No pudimos registrar la entrega. Revisá las cantidades.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Registrar entrega"
+      footer={<PrimaryButton label={busy ? 'Guardando...' : 'Confirmar entrega'} onPress={onConfirm} disabled={busy} />}
+    >
+      <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetClient}>{order.name}</Text>
+          <Text style={styles.sheetSub}>{order.entrega ? `Entrega ${order.entrega}` : 'Sin fecha de entrega'}</Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          {order.items.map((item) => {
+            const pending = item.quantity - item.deliveredQuantity;
+            const value = quantities[item.id] ?? 0;
+            return (
+              <View key={item.id} style={styles.itemRow}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemMeta}>
+                    Pedido {item.quantity} · Entregado {item.deliveredQuantity} · Pendiente {pending}
+                  </Text>
+                </View>
+                <Stepper
+                  value={value}
+                  onDec={() => setItemQuantity(item.id, value - 1)}
+                  onInc={() => setItemQuantity(item.id, value + 1)}
+                />
+              </View>
+            );
+          })}
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
+    </BottomSheet>
+  );
+}
+
+function PaymentSheet({ order, visible, onClose }: { order: Order | null; visible: boolean; onClose: () => void }) {
+  const [amount, setAmount] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !order) return;
+    setAmount(String(paymentBalance(order)));
+    setError(null);
+    setBusy(false);
+  }, [visible, order]);
+
+  if (!order) return null;
+
+  const balance = paymentBalance(order);
+
+  const onConfirm = async () => {
+    const parsed = parseInt(amount, 10);
+    if (balance <= 0) {
+      setError('Este pedido ya está cobrado completo.');
+      return;
+    }
+    if (amount.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
+      setError('Ingresá un importe mayor a 0.');
+      return;
+    }
+    if (parsed > balance) {
+      setError('El importe no puede superar el saldo pendiente.');
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await orderService.registerPayment(order.id, parsed);
+      onClose();
+    } catch {
+      setError('No pudimos registrar el cobro. Probá de nuevo.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Registrar cobro"
+      footer={<PrimaryButton label={busy ? 'Guardando...' : 'Confirmar cobro'} onPress={onConfirm} disabled={busy} />}
+    >
+      <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetClient}>{order.name}</Text>
+          <Text style={styles.sheetSub}>Total {formatARS(order.totalAmount)}</Text>
+        </View>
+
+        <View style={styles.paymentSummary}>
+          <AmountCell label="Pagado" value={formatARS(order.paidAmount)} />
+          <AmountCell label="Saldo" value={formatARS(balance)} emphasized />
+        </View>
+
+        <View style={styles.field}>
+          <Label>Importe a cobrar ahora</Label>
+          <Input
+            value={amount}
+            onChangeText={(text) => setAmount(text.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+            placeholder="$0"
+          />
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
+    </BottomSheet>
+  );
+}
+
+function AmountCell({ label, value, emphasized }: { label: string; value: string; emphasized?: boolean }) {
+  return (
+    <View style={styles.amountCell}>
+      <Text style={styles.amountLabel}>{label}</Text>
+      <Text style={[styles.amountValue, emphasized && { color: colors.rose }]}>{value}</Text>
     </View>
   );
 }
@@ -137,8 +299,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
   summaryLabel: { fontSize: 12, fontFamily: fonts.sansBold, letterSpacing: 1, textTransform: 'uppercase', color: colors.olive },
   summarySub: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter },
   summaryAmount: { fontFamily: fonts.serifSemi, fontSize: 30, color: colors.rose },
+  sheetBody: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 12, gap: 16 },
+  sheetHeader: { gap: 3 },
+  sheetClient: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.ink },
+  sheetSub: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    paddingVertical: 13,
+    paddingLeft: 16,
+    paddingRight: 14,
+  },
+  itemName: { fontSize: 15, fontFamily: fonts.sansBold, color: colors.ink },
+  itemMeta: { fontSize: 12.5, fontFamily: fonts.sans, color: colors.inkSoft },
+  paymentSummary: { flexDirection: 'row', gap: 10 },
+  amountCell: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    gap: 4,
+  },
+  amountLabel: { fontSize: 11.5, fontFamily: fonts.sansBold, letterSpacing: 1, textTransform: 'uppercase', color: colors.olive },
+  amountValue: { fontSize: 20, fontFamily: fonts.sansExtra, color: colors.ink },
+  field: { gap: 8 },
+  error: { color: colors.rose, fontFamily: fonts.sansSemi, fontSize: 13 },
 });

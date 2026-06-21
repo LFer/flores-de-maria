@@ -3,11 +3,90 @@
 // representative set spanning the four movement types.
 import type { Order, Expense, CashMovement } from '../../types';
 
+const orderItems = (chica: number, grande: number, delivered = false) => [
+  ...(chica > 0
+    ? [
+        {
+          id: 'chica',
+          name: 'Caja Chica (16 brigadeiros)',
+          quantity: chica,
+          unitPrice: 250,
+          total: chica * 250,
+          deliveredQuantity: delivered ? chica : 0,
+        },
+      ]
+    : []),
+  ...(grande > 0
+    ? [
+        {
+          id: 'grande',
+          name: 'Caja Grande (30 brigadeiros)',
+          quantity: grande,
+          unitPrice: 450,
+          total: grande * 450,
+          deliveredQuantity: delivered ? grande : 0,
+        },
+      ]
+    : []),
+];
+
 export const seedOrders: Order[] = [
-  { id: 'o1', name: 'Susana', chica: 1, grande: 0, assignee: 'María', entregado: true, cobrado: true },
-  { id: 'o2', name: 'Camila', chica: 0, grande: 1, assignee: 'Belén', entregado: true, cobrado: false },
-  { id: 'o3', name: 'Melanie', chica: 2, grande: 0, assignee: 'María', entregado: false, cobrado: false },
-  { id: 'o4', name: 'Carmelitas', chica: 1, grande: 2, assignee: 'Belén', entregado: false, cobrado: true },
+  {
+    id: 'o1',
+    name: 'Susana',
+    chica: 1,
+    grande: 0,
+    assignee: 'María',
+    items: orderItems(1, 0, true),
+    totalAmount: 250,
+    paidAmount: 250,
+    deliveryStatus: 'delivered',
+    paymentStatus: 'paid',
+    deliveryMovements: [],
+    paymentMovementIds: ['m1'],
+  },
+  {
+    id: 'o2',
+    name: 'Camila',
+    chica: 0,
+    grande: 1,
+    assignee: 'Belén',
+    items: orderItems(0, 1, true),
+    totalAmount: 450,
+    paidAmount: 0,
+    deliveryStatus: 'delivered',
+    paymentStatus: 'pending',
+    deliveryMovements: [],
+    paymentMovementIds: [],
+  },
+  {
+    id: 'o3',
+    name: 'Melanie',
+    chica: 2,
+    grande: 0,
+    assignee: 'María',
+    items: orderItems(2, 0),
+    totalAmount: 500,
+    paidAmount: 0,
+    deliveryStatus: 'pending',
+    paymentStatus: 'pending',
+    deliveryMovements: [],
+    paymentMovementIds: [],
+  },
+  {
+    id: 'o4',
+    name: 'Carmelitas',
+    chica: 1,
+    grande: 2,
+    assignee: 'Belén',
+    items: orderItems(1, 2),
+    totalAmount: 1150,
+    paidAmount: 600,
+    deliveryStatus: 'pending',
+    paymentStatus: 'partial',
+    deliveryMovements: [],
+    paymentMovementIds: ['m2'],
+  },
 ];
 
 export const seedExpenses: Expense[] = [
@@ -21,8 +100,8 @@ const DAY = 86_400_000;
 const now = Date.now();
 
 export const seedCashMovements: CashMovement[] = [
-  { id: 'm1', type: 'order_payment', direction: 'in', amount: 400, description: 'Cobro pedido · Susana', createdAt: now - 1 * DAY },
-  { id: 'm2', type: 'order_payment', direction: 'in', amount: 600, description: 'Cobro pedido · Familia Gómez', createdAt: now - 3 * DAY },
+  { id: 'm1', type: 'order_payment', direction: 'in', amount: 250, description: 'Cobro pedido · Susana', orderId: 'o1', createdAt: now - 1 * DAY },
+  { id: 'm2', type: 'order_payment', direction: 'in', amount: 600, description: 'Cobro pedido · Carmelitas', orderId: 'o4', createdAt: now - 3 * DAY },
   { id: 'm3', type: 'expense', direction: 'out', amount: 480, description: 'Leche condensada · 6 latas', expenseId: 'e1', createdAt: now - 4 * DAY },
   { id: 'm4', type: 'parish_delivery', direction: 'out', amount: 500, description: 'Entrega a la parroquia', responsibleName: 'María', createdAt: now - 5 * DAY },
   { id: 'm5', type: 'order_payment', direction: 'in', amount: 750, description: 'Cobro pedido · Kiosco San José', createdAt: now - 7 * DAY },

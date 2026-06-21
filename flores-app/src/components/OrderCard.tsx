@@ -8,30 +8,44 @@ import { orderAmount, type Order } from '../types';
 import { formatARS } from '../lib/format';
 import { CURRENT_USER } from '../lib/constants';
 
-function cajasLabel(c: number, g: number): string {
-  if (c && g) return `${c} ${c === 1 ? 'chica' : 'chicas'} · ${g} ${g === 1 ? 'grande' : 'grandes'}`;
-  if (c) return c === 1 ? '1 caja chica' : `${c} cajas chicas`;
-  if (g) return g === 1 ? '1 caja grande' : `${g} cajas grandes`;
-  return 'Sin cajas';
+function itemsLabel(order: Order): string {
+  return order.items
+    .map((item) => {
+      const kind = item.id === 'chica' ? 'chica' : item.id === 'grande' ? 'grande' : item.name;
+      return `${item.quantity} ${item.quantity === 1 ? kind : `${kind}s`}`;
+    })
+    .join(' · ');
+}
+
+function deliveryLabel(order: Order): string {
+  if (order.deliveryStatus === 'delivered') return 'Entrega completa';
+  if (order.deliveryStatus === 'partial') return 'Entrega parcial';
+  return 'Entrega pendiente';
+}
+
+function paymentLabel(order: Order): string {
+  if (order.paymentStatus === 'paid') return 'Cobro completo';
+  if (order.paymentStatus === 'partial') return 'Cobro parcial';
+  return 'Cobro pendiente';
 }
 
 type Props = {
   order: Order;
-  onToggleEntrega: () => void;
-  onToggleCobro: () => void;
-  onMarcarAmbos: () => void;
+  onRegisterDelivery: () => void;
+  onRegisterPayment: () => void;
 };
 
-export function OrderCard({ order, onToggleEntrega, onToggleCobro, onMarcarAmbos }: Props) {
+export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Props) {
   const esMaria = order.assignee === CURRENT_USER;
-  const ambosPendientes = !order.entregado && !order.cobrado;
+  const deliveryDone = order.deliveryStatus === 'delivered';
+  const paymentDone = order.paymentStatus === 'paid';
 
   return (
     <View style={styles.card}>
       <View style={styles.topRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{order.name}</Text>
-          <Text style={styles.detail}>{cajasLabel(order.chica, order.grande)}</Text>
+          <Text style={styles.detail}>{itemsLabel(order)}</Text>
         </View>
         <View style={styles.right}>
           <Text style={styles.amount}>{formatARS(orderAmount(order))}</Text>
@@ -48,22 +62,35 @@ export function OrderCard({ order, onToggleEntrega, onToggleCobro, onMarcarAmbos
 
       <View style={styles.chips}>
         <Chip
-          label={order.entregado ? 'Entregado' : 'Ingresado'}
-          tone={order.entregado ? 'done' : 'pending'}
-          onPress={onToggleEntrega}
+          label={deliveryLabel(order)}
+          tone={deliveryDone ? 'done' : 'pending'}
         />
         <Chip
-          label={order.cobrado ? 'Cobrado' : 'Sin cobrar'}
-          tone={order.cobrado ? 'done' : 'pending'}
-          onPress={onToggleCobro}
+          label={paymentLabel(order)}
+          tone={paymentDone ? 'done' : 'pending'}
         />
       </View>
 
-      {ambosPendientes && (
-        <Pressable onPress={onMarcarAmbos} style={styles.markBoth}>
-          <Text style={styles.markBothText}>Marcar entregado y cobrado</Text>
+      <View style={styles.actions}>
+        <Pressable
+          onPress={onRegisterDelivery}
+          disabled={deliveryDone}
+          style={[styles.actionBtn, deliveryDone && styles.actionDisabled]}
+        >
+          <Text style={[styles.actionText, deliveryDone && styles.actionTextDisabled]}>
+            {deliveryDone ? 'Entrega completa' : 'Registrar entrega'}
+          </Text>
         </Pressable>
-      )}
+        <Pressable
+          onPress={onRegisterPayment}
+          disabled={paymentDone}
+          style={[styles.actionBtn, paymentDone && styles.actionDisabled]}
+        >
+          <Text style={[styles.actionText, paymentDone && styles.actionTextDisabled]}>
+            {paymentDone ? 'Cobro completo' : 'Registrar cobro'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -94,14 +121,20 @@ const styles = StyleSheet.create({
   badgeLetter: { fontSize: 10.5, fontFamily: fonts.sansExtra },
   assigneeName: { fontSize: 12.5, fontFamily: fonts.sansSemi, color: 'rgba(45,42,40,0.6)' },
   chips: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  markBoth: {
-    marginTop: 10,
+  actions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actionBtn: {
+    flex: 1,
     alignItems: 'center',
     paddingVertical: 9,
     borderRadius: 11,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(151,165,108,0.55)',
+    borderColor: 'rgba(151,165,108,0.45)',
+    backgroundColor: colors.sageBgSoft,
   },
-  markBothText: { color: colors.sageDeep, fontSize: 12.5, fontFamily: fonts.sansBold },
+  actionDisabled: {
+    borderColor: colors.border,
+    backgroundColor: colors.segment,
+  },
+  actionText: { color: colors.sageDeep, fontSize: 12.5, fontFamily: fonts.sansBold },
+  actionTextDisabled: { color: colors.inkFaint },
 });

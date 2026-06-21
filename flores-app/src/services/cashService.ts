@@ -15,7 +15,6 @@ import { db, isFirebaseConfigured } from './firebaseService';
 import { authService } from './authService';
 import { MemoryCollection, genId } from './mock/store';
 import { seedCashMovements } from './mock/seed';
-import { orderAmount } from '../types';
 import type {
   CashMovement,
   NewCashMovementInput,
@@ -80,11 +79,11 @@ export const cashService = {
   },
 
   // ── Typed creators ─────────────────────────────────────────────
-  createOrderPaymentMovement(order: Order): Promise<string> {
+  createOrderPaymentMovement(order: Order, amount = order.totalAmount - order.paidAmount): Promise<string> {
     return this.createCashMovement({
       type: 'order_payment',
       direction: 'in',
-      amount: orderAmount(order),
+      amount,
       description: `Cobro pedido · ${order.name}`,
       orderId: order.id,
     });
