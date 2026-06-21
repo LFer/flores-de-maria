@@ -5,8 +5,9 @@ export type Assignee = 'María' | 'Belén';
 // Box pricing (ARS). Matches the prototype: chica $250, grande $450.
 export const PRICE = { chica: 250, grande: 450 } as const;
 
-export function orderAmount(o: Pick<Order, 'chica' | 'grande'>): number {
-  return o.chica * PRICE.chica + o.grande * PRICE.grande;
+// Manual `amount` (the editable "Importe") overrides the box-derived suggestion.
+export function orderAmount(o: Pick<Order, 'chica' | 'grande' | 'amount'>): number {
+  return o.amount ?? o.chica * PRICE.chica + o.grande * PRICE.grande;
 }
 
 export interface Order {
@@ -19,6 +20,7 @@ export interface Order {
   cobrado: boolean;
   entrega?: string; // delivery date label, e.g. "20 jun"
   nota?: string;
+  amount?: number; // manual "Importe"; overrides the box-derived calc
   paymentMovementId?: string | null; // cash_movements doc created when cobrado
   createdAt?: number;
 }

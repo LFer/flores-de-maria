@@ -23,20 +23,33 @@ export function Label({ children, hint }: { children: React.ReactNode; hint?: st
   );
 }
 
-// White rounded input matching the form fields in the design.
-export function Input(props: TextInputProps) {
+// White rounded input matching the form fields in the design. Pass `rightSlot`
+// to render a trailing element (e.g. a show/hide-password button or an icon).
+export function Input({ rightSlot, ...props }: TextInputProps & { rightSlot?: React.ReactNode }) {
+  if (rightSlot) {
+    return (
+      <View style={[styles.box, styles.boxRow]}>
+        <TextInput
+          placeholderTextColor={colors.inkFaint}
+          {...props}
+          style={[styles.inputText, { flex: 1 }, props.style]}
+        />
+        {rightSlot}
+      </View>
+    );
+  }
   return (
     <TextInput
       placeholderTextColor={colors.inkFaint}
       {...props}
-      style={[styles.input, props.style]}
+      style={[styles.box, styles.inputText, props.style]}
     />
   );
 }
 
-// Read-only white field box (e.g. the "Monto sugerido" display).
+// Read-only white field box (e.g. a display-only value).
 export function FieldBox({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.input, styles.fieldBox, style]}>{children}</View>;
+  return <View style={[styles.box, styles.fieldBox, style]}>{children}</View>;
 }
 
 // Rose pill CTA with pink glow.
@@ -76,13 +89,16 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansMed,
     color: colors.inkFaint,
   },
-  input: {
+  box: {
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
+  },
+  boxRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inputText: {
     fontSize: 16,
     fontFamily: fonts.sans,
     color: colors.ink,

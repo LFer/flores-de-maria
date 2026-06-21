@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { FlowerLogo } from '../components/Flower';
@@ -14,6 +15,7 @@ export function LoginScreen() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -60,7 +62,22 @@ export function LoginScreen() {
         </View>
         <View style={styles.field}>
           <Label>Contraseña</Label>
-          <Input value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry autoComplete="password" />
+          <Input
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            autoComplete="password"
+            rightSlot={
+              <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={10}>
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                  color={colors.stone}
+                />
+              </Pressable>
+            }
+          />
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label={busy ? 'Ingresando…' : 'Ingresar'} onPress={onSubmit} disabled={busy} style={{ marginTop: 6 }} />

@@ -62,6 +62,7 @@ export const orderService = {
     };
     if (input.entrega) payload.entrega = input.entrega;
     if (input.nota) payload.nota = input.nota;
+    if (input.amount != null) payload.amount = input.amount;
 
     let id: string;
     if (isFirebaseConfigured && db) {

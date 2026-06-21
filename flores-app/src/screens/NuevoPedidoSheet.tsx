@@ -1,41 +1,63 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { BottomSheet } from '../components/BottomSheet';
-import { Label, Input, FieldBox, PrimaryButton } from '../components/ui';
+import { Label, Input, PrimaryButton } from '../components/ui';
 import { Stepper } from '../components/Stepper';
 import { SegmentedControl } from '../components/SegmentedControl';
-import { CalendarIcon } from '../components/icons';
+import { DateField } from '../components/DateField';
 import { orderService } from '../services';
 import { PRICE } from '../types';
-import { formatARS, shortDate } from '../lib/format';
+import { shortDate } from '../lib/format';
 
 type EntregaState = 'ingresado' | 'entregado';
 type CobroState = 'sin' | 'cobrado';
+
+const suggestedAmount = (chica: number, grande: number) => chica * PRICE.chica + grande * PRICE.grande;
 
 export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [cliente, setCliente] = useState('');
   const [chica, setChica] = useState(1);
   const [grande, setGrande] = useState(1);
+  const [importe, setImporte] = useState(String(suggestedAmount(1, 1)));
+  const [fecha, setFecha] = useState(() => new Date());
   const [entrega, setEntrega] = useState<EntregaState>('ingresado');
   const [cobro, setCobro] = useState<CobroState>('sin');
   const [nota, setNota] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const monto = useMemo(() => formatARS(chica * PRICE.chica + grande * PRICE.grande), [chica, grande]);
-  const fecha = useMemo(() => shortDate(), []);
+  // Changing the box quantities always recalculates the suggested importe,
+  // overwriting whatever value is currently in the field.
+  useEffect(() => {
+    setImporte(String(suggestedAmount(chica, grande)));
+  }, [chica, grande]);
+
+  // Clear any stale error when the sheet is reopened.
+  useEffect(() => {
+    if (visible) setError(null);
+  }, [visible]);
 
   const reset = () => {
     setCliente('');
     setChica(1);
     setGrande(1);
+    setImporte(String(suggestedAmount(1, 1)));
+    setFecha(new Date());
     setEntrega('ingresado');
     setCobro('sin');
     setNota('');
+    setError(null);
   };
 
   const onSave = async () => {
+    const amount = parseInt(importe, 10);
+    if (importe.trim() === '' || !Number.isFinite(amount) || amount < 0) {
+      setError('Ingresá un importe válido (mayor o igual a 0).');
+      return;
+    }
+    setError(null);
     setBusy(true);
     try {
       await orderService.add({
@@ -45,11 +67,15 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
         assignee: 'María',
         entregado: entrega === 'entregado',
         cobrado: cobro === 'cobrado',
-        entrega: fecha,
+        entrega: shortDate(fecha),
         nota: nota.trim() || undefined,
+        amount,
       });
+      // Only clear and close when the save succeeded.
       reset();
       onClose();
+    } catch {
+      setError('No pudimos guardar el pedido. Probá de nuevo.');
     } finally {
       setBusy(false);
     }
@@ -78,19 +104,17 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1 }]}>
-            <Label>Monto sugerido</Label>
-            <FieldBox>
-              <Text style={styles.montoText}>{monto}</Text>
-            </FieldBox>
+            <Label>Importe</Label>
+            <Input
+              value={importe}
+              onChangeText={(t) => setImporte(t.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              placeholder="$0"
+            />
           </View>
           <View style={[styles.field, { flex: 1 }]}>
             <Label>Entrega</Label>
-            <FieldBox>
-              <View style={styles.dateRow}>
-                <Text style={styles.dateText}>{fecha}</Text>
-                <CalendarIcon />
-              </View>
-            </FieldBox>
+            <DateField value={fecha} onChange={setFecha} />
           </View>
         </View>
 
@@ -122,6 +146,8 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
           <Label hint="(opcional)">Nota</Label>
           <Input value={nota} onChangeText={setNota} placeholder="Ej. Retira en la parroquia" />
         </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
     </BottomSheet>
   );
@@ -140,9 +166,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 12, gap: 16 },
   field: { gap: 8 },
   row: { flexDirection: 'row', gap: 12 },
-  montoText: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
-  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  dateText: { fontSize: 16, fontFamily: fonts.sans, color: colors.ink },
+  error: { color: colors.rose, fontFamily: fonts.sansSemi, fontSize: 13 },
   cajaRow: {
     flexDirection: 'row',
     alignItems: 'center',

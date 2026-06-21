@@ -31,7 +31,8 @@
         {
           "photosPermission": "Permití el acceso a tus fotos para adjuntar el comprobante de un gasto."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }
