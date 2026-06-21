@@ -3,11 +3,13 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  updateProfile,
   signOut as fbSignOut,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { auth, isFirebaseConfigured } from './firebase';
-import type { AppUser, Unsubscribe } from '../types';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db, isFirebaseConfigured } from './firebaseService';
+import type { AppUser, UserProfile, Unsubscribe } from '../types';
 
 const MOCK_KEY = 'mock-user';
 let mockUser: AppUser | null = null;
@@ -42,12 +44,28 @@ export const authService = {
     return mockUser;
   },
 
-  async signUp(email: string, password: string): Promise<AppUser> {
-    if (isFirebaseConfigured && auth) {
+  /**
+   * Self-service signup: creates the Auth user, sets the displayName, and writes
+   * a `users/{uid}` profile document (role "user", active true).
+   */
+  async signUp(email: string, password: string, displayName: string): Promise<AppUser> {
+    const name = displayName.trim();
+    if (isFirebaseConfigured && auth && db) {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      return { uid: cred.user.uid, email: cred.user.email, displayName: cred.user.displayName };
+      if (name) await updateProfile(cred.user, { displayName: name });
+      const profile: UserProfile = {
+        uid: cred.user.uid,
+        email: cred.user.email,
+        displayName: name || null,
+        role: 'user',
+        active: true,
+        createdAt: Date.now(),
+      };
+      await setDoc(doc(db, 'users', cred.user.uid), profile);
+      return { uid: cred.user.uid, email: cred.user.email, displayName: name || null };
     }
-    mockUser = { uid: MOCK_KEY, email, displayName: email.split('@')[0] };
+    if (!email || !password) throw new Error('Completá email y contraseña.');
+    mockUser = { uid: MOCK_KEY, email, displayName: name || email.split('@')[0] };
     emitMock();
     return mockUser;
   },
@@ -59,5 +77,17 @@ export const authService = {
     }
     mockUser = null;
     emitMock();
+  },
+
+  /** Current user's uid, if any (sync). Used to stamp createdBy on writes. */
+  currentUserId(): string | undefined {
+    if (isFirebaseConfigured && auth) return auth.currentUser?.uid ?? undefined;
+    return mockUser?.uid;
+  },
+
+  /** Current user's display name, if any (sync). */
+  currentUserName(): string | undefined {
+    if (isFirebaseConfigured && auth) return auth.currentUser?.displayName ?? undefined;
+    return mockUser?.displayName ?? undefined;
   },
 };

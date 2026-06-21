@@ -24,6 +24,10 @@ export class MemoryCollection<T extends { id: string }> {
     return [...this.items];
   }
 
+  get(id: string): T | undefined {
+    return this.items.find((it) => it.id === id);
+  }
+
   add(item: T): void {
     this.items = [item, ...this.items];
     this.emit();
@@ -31,6 +35,11 @@ export class MemoryCollection<T extends { id: string }> {
 
   update(id: string, patch: Partial<T>): void {
     this.items = this.items.map((it) => (it.id === id ? { ...it, ...patch } : it));
+    this.emit();
+  }
+
+  remove(id: string): void {
+    this.items = this.items.filter((it) => it.id !== id);
     this.emit();
   }
 

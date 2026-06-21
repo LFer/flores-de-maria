@@ -37,18 +37,25 @@ export function PedidosScreen() {
     toastTimer.current = setTimeout(() => setToast(null), 4500);
   };
 
+  const setField = (id: string, field: 'entregado' | 'cobrado', value: boolean) =>
+    field === 'entregado' ? orderService.setEntrega(id, value) : orderService.setCobro(id, value);
+
   const toggleField = (o: Order, field: 'entregado' | 'cobrado') => {
     const next = !o[field];
-    orderService.toggle(o.id, field, next);
+    setField(o.id, field, next);
     flashToast(field === 'entregado' ? 'Entrega actualizada' : 'Cobro actualizado', () =>
-      orderService.toggle(o.id, field, !next),
+      setField(o.id, field, !next),
     );
   };
 
   const marcarAmbos = (o: Order) => {
     const prev = { entregado: o.entregado, cobrado: o.cobrado };
-    orderService.update(o.id, { entregado: true, cobrado: true });
-    flashToast('Entregado y cobrado', () => orderService.update(o.id, prev));
+    orderService.setEntrega(o.id, true);
+    orderService.setCobro(o.id, true);
+    flashToast('Entregado y cobrado', () => {
+      orderService.setEntrega(o.id, prev.entregado);
+      orderService.setCobro(o.id, prev.cobrado);
+    });
   };
 
   const undo = () => {

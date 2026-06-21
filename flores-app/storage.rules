@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Flores de María — Storage rules.
+// Comprobante (receipt) images for gastos. Authenticated users only.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /comprobantes/{file} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

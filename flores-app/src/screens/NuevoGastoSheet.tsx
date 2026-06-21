@@ -37,13 +37,12 @@ export function NuevoGastoSheet({ visible, onClose }: { visible: boolean; onClos
   const onSave = async () => {
     setBusy(true);
     try {
-      const comprobanteUrl = comprobante ? await expenseService.uploadComprobante(comprobante) : undefined;
       await expenseService.add({
         name: name.trim(),
         detail: detail.trim() || '—',
         amount,
         date: shortDate(),
-        comprobanteUrl,
+        comprobanteLocalUri: comprobante ?? undefined,
       });
       reset();
       onClose();

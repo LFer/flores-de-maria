@@ -1,33 +1,39 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { cardShadow, listCardShadow } from '../theme/shadows';
-import { cashService, expenseService } from '../services';
-import type { Income, Expense } from '../types';
-import { formatARS } from '../lib/format';
+import { Fab } from '../components/Fab';
+import { NuevoMovimientoSheet } from './NuevoMovimientoSheet';
+import { cashService } from '../services';
+import type { CashMovement, CashMovementType } from '../types';
+import { formatARS, shortDate } from '../lib/format';
+
+const TYPE_LABEL: Record<CashMovementType, string> = {
+  order_payment: 'Cobro de pedido',
+  expense: 'Gasto',
+  parish_delivery: 'Entrega a parroquia',
+  adjustment: 'Ajuste',
+};
 
 export function CajaScreen() {
   const insets = useSafeAreaInsets();
   const tabH = useBottomTabBarHeight();
-  const [incomes, setIncomes] = useState<Income[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [movements, setMovements] = useState<CashMovement[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  useEffect(() => cashService.subscribeIncomes(setIncomes), []);
-  useEffect(() => expenseService.subscribe(setExpenses), []);
+  useEffect(() => cashService.listCashMovements(setMovements), []);
 
-  const totalIngresos = incomes.reduce((s, i) => s + i.amount, 0);
-  const totalGastos = expenses.reduce((s, e) => s + e.amount, 0);
-  const enCaja = totalIngresos - totalGastos;
+  const summary = useMemo(() => cashService.getCashSummary(movements), [movements]);
 
   return (
     <View style={styles.root}>
       <FlatList
-        data={incomes}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 24 }]}
+        data={movements}
+        keyExtractor={(m) => m.id}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 96 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
@@ -35,35 +41,48 @@ export function CajaScreen() {
 
             <View style={[styles.hero, cardShadow]}>
               <Text style={styles.heroLabel}>En caja</Text>
-              <Text style={styles.heroAmount}>{formatARS(enCaja)}</Text>
-              <Text style={styles.heroSub}>Ingresos − gastos · para la parroquia</Text>
+              <Text style={styles.heroAmount}>{formatARS(summary.balance)}</Text>
+              <Text style={styles.heroSub}>Ingresos − egresos · para la parroquia</Text>
             </View>
 
             <View style={styles.statsRow}>
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>Ingresos</Text>
-                <Text style={[styles.statValue, { color: colors.sageDeep }]}>{formatARS(totalIngresos)}</Text>
+                <Text style={[styles.statValue, { color: colors.sageDeep }]}>{formatARS(summary.totalIn)}</Text>
               </View>
               <View style={styles.stat}>
-                <Text style={styles.statLabel}>Gastos</Text>
-                <Text style={[styles.statValue, { color: colors.roseText }]}>{formatARS(totalGastos)}</Text>
+                <Text style={styles.statLabel}>Egresos</Text>
+                <Text style={[styles.statValue, { color: colors.roseText }]}>{formatARS(summary.totalOut)}</Text>
               </View>
             </View>
 
-            <Text style={styles.sectionLabel}>Cobros recientes</Text>
+            <Text style={styles.sectionLabel}>Movimientos</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={[styles.row, listCardShadow]}>
-            <View style={{ gap: 3 }}>
-              <Text style={styles.rowName}>{item.name}</Text>
-              <Text style={styles.rowDetail}>{item.detail} · {item.date}</Text>
+        renderItem={({ item }) => {
+          const isIn = item.direction === 'in';
+          return (
+            <View style={[styles.row, listCardShadow]}>
+              <View style={styles.rowLeft}>
+                <View style={[styles.iconBox, { backgroundColor: isIn ? colors.sageBg : colors.petalBgFaint }]}>
+                  <View style={[styles.iconDot, { backgroundColor: isIn ? colors.sage : colors.petalSoft }]} />
+                </View>
+                <View style={{ gap: 3, flexShrink: 1 }}>
+                  <Text style={styles.rowName} numberOfLines={1}>{item.description}</Text>
+                  <Text style={styles.rowDetail}>{TYPE_LABEL[item.type]} · {shortDate(new Date(item.createdAt))}</Text>
+                </View>
+              </View>
+              <Text style={[styles.rowAmount, { color: isIn ? colors.sageDeep : colors.roseText }]}>
+                {isIn ? '+' : '−'}{formatARS(item.amount)}
+              </Text>
             </View>
-            <Text style={[styles.rowAmount, { color: colors.sageDeep }]}>+{formatARS(item.amount)}</Text>
-          </View>
-        )}
+          );
+        }}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
       />
+
+      <Fab onPress={() => setSheetOpen(true)} bottom={tabH + 18} />
+      <NuevoMovimientoSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
     </View>
   );
 }
@@ -106,7 +125,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
+  iconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconDot: { width: 8, height: 8, borderRadius: 4 },
   rowName: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
   rowDetail: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter },
   rowAmount: { fontSize: 17, fontFamily: fonts.sansExtra },
