@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, ScrollView, StyleSheet, Pressable, Alert, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { cardShadow } from '../theme/shadows';
 import { FlowerMark } from '../components/Flower';
+import { SpiritualFlowerModal } from '../components/SpiritualFlowerModal';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { OrderCard } from '../components/OrderCard';
 import { Fab } from '../components/Fab';
@@ -16,9 +18,11 @@ import { PrimaryButton } from '../components/ui';
 import { Stepper } from '../components/Stepper';
 import { orderService } from '../services';
 import type { Order } from '../types';
+import type { SpiritualFlower } from '../data/spiritualFlowers';
 import { formatARS } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { sameUserName, userDisplayName } from '../lib/userDisplay';
+import { maybeGetDailySpiritualFlower, type SpiritualFlowerContext } from '../utils/spiritualFlowers';
 
 type Filter = 'todos' | 'mios';
 type QuickFilter = 'activos' | 'entrega' | 'cobro' | 'archivados';
@@ -62,8 +66,20 @@ export function PedidosScreen() {
   const [deliverySheetOpen, setDeliverySheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [spiritualFlower, setSpiritualFlower] = useState<SpiritualFlower | null>(null);
 
   useEffect(() => orderService.subscribe(setOrders), []);
+
+  const tryShowSpiritualFlower = useCallback(async (context: SpiritualFlowerContext, probability: number) => {
+    const flower = await maybeGetDailySpiritualFlower(context, probability);
+    if (flower) setSpiritualFlower(flower);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void tryShowSpiritualFlower('home', 0.3);
+    }, [tryShowSpiritualFlower]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -196,7 +212,13 @@ export function PedidosScreen() {
       />
 
       <Fab onPress={() => setNewOrderOpen(true)} bottom={tabH + 18} />
-      <NuevoPedidoSheet visible={newOrderOpen} onClose={() => setNewOrderOpen(false)} />
+      <NuevoPedidoSheet
+        visible={newOrderOpen}
+        onClose={() => setNewOrderOpen(false)}
+        onOrderCreated={() => {
+          void tryShowSpiritualFlower('order_created', 0.25);
+        }}
+      />
       <NuevoPedidoSheet
         visible={editSheetOpen}
         onClose={() => setEditSheetOpen(false)}
@@ -212,6 +234,7 @@ export function PedidosScreen() {
         visible={paymentSheetOpen}
         onClose={() => setPaymentSheetOpen(false)}
       />
+      <SpiritualFlowerModal flower={spiritualFlower} onClose={() => setSpiritualFlower(null)} />
     </View>
   );
 }

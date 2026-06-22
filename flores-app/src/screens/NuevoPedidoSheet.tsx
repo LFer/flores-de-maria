@@ -46,10 +46,12 @@ export function NuevoPedidoSheet({
   visible,
   onClose,
   order,
+  onOrderCreated,
 }: {
   visible: boolean;
   onClose: () => void;
   order?: Order | null;
+  onOrderCreated?: () => void;
 }) {
   const { user } = useAuth();
   const currentUserName = userDisplayName(user);
@@ -126,6 +128,7 @@ export function NuevoPedidoSheet({
     setError(null);
     setBusy(true);
     try {
+      let createdOrder = false;
       if (order) {
         await orderService.updateEditableOrder(order.id, {
           name: cliente.trim() || 'Sin nombre',
@@ -147,10 +150,12 @@ export function NuevoPedidoSheet({
           nota: nota.trim() || undefined,
           amount,
         });
+        createdOrder = true;
       }
       // Only clear and close when the save succeeded.
       reset();
       onClose();
+      if (createdOrder) onOrderCreated?.();
     } catch {
       setError(
         order

@@ -7,10 +7,13 @@ import { fonts } from '../theme/fonts';
 import { cardShadow, listCardShadow } from '../theme/shadows';
 import { Fab } from '../components/Fab';
 import { LogoutButton } from '../components/LogoutButton';
+import { SpiritualFlowerModal } from '../components/SpiritualFlowerModal';
 import { NuevoMovimientoSheet } from './NuevoMovimientoSheet';
 import { cashService } from '../services';
 import type { CashMovement, CashMovementType } from '../types';
+import type { SpiritualFlower } from '../data/spiritualFlowers';
 import { formatARS, shortDate } from '../lib/format';
+import { maybeGetDailySpiritualFlower } from '../utils/spiritualFlowers';
 
 const TYPE_LABEL: Record<CashMovementType, string> = {
   order_payment: 'Cobro de pedido',
@@ -25,6 +28,7 @@ export function CajaScreen() {
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [spiritualFlower, setSpiritualFlower] = useState<SpiritualFlower | null>(null);
 
   useEffect(() => cashService.listCashMovements(setMovements), []);
 
@@ -41,6 +45,11 @@ export function CajaScreen() {
   }, []);
 
   const summary = useMemo(() => cashService.getCashSummary(movements), [movements]);
+
+  const tryShowParishDeliveryFlower = useCallback(async () => {
+    const flower = await maybeGetDailySpiritualFlower('parish_delivery', 0.5);
+    if (flower) setSpiritualFlower(flower);
+  }, []);
 
   return (
     <View style={styles.root}>
@@ -107,7 +116,14 @@ export function CajaScreen() {
       />
 
       <Fab onPress={() => setSheetOpen(true)} bottom={tabH + 18} />
-      <NuevoMovimientoSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <NuevoMovimientoSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onParishDeliveryCreated={() => {
+          void tryShowParishDeliveryFlower();
+        }}
+      />
+      <SpiritualFlowerModal flower={spiritualFlower} onClose={() => setSpiritualFlower(null)} />
     </View>
   );
 }

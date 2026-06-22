@@ -10,7 +10,15 @@ type Dir = 'in' | 'out';
 
 // Registers the two cash movements that don't originate from another screen:
 // entregas de dinero a la parroquia y ajustes manuales.
-export function NuevoMovimientoSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function NuevoMovimientoSheet({
+  visible,
+  onClose,
+  onParishDeliveryCreated,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onParishDeliveryCreated?: () => void;
+}) {
   const [tipo, setTipo] = useState<Tipo>('parish_delivery');
   const [direction, setDirection] = useState<Dir>('in');
   const [monto, setMonto] = useState('');
@@ -32,12 +40,14 @@ export function NuevoMovimientoSheet({ visible, onClose }: { visible: boolean; o
   const onSave = async () => {
     setBusy(true);
     try {
+      let createdParishDelivery = false;
       if (tipo === 'parish_delivery') {
         await cashService.createParishDeliveryMovement({
           amount,
           description: descripcion.trim() || 'Entrega a la parroquia',
           responsibleName: responsable.trim() || undefined,
         });
+        createdParishDelivery = true;
       } else {
         await cashService.createAdjustmentMovement({
           direction,
@@ -47,6 +57,7 @@ export function NuevoMovimientoSheet({ visible, onClose }: { visible: boolean; o
       }
       reset();
       onClose();
+      if (createdParishDelivery) onParishDeliveryCreated?.();
     } finally {
       setBusy(false);
     }
