@@ -118,6 +118,20 @@ function paymentSummary(order: Order): ProgressSummary {
   };
 }
 
+function noteText(order: Order): string | null {
+  const fields = order as Order & { notas?: unknown; note?: unknown };
+  const rawNote =
+    typeof fields.nota === 'string'
+      ? fields.nota
+      : typeof fields.notas === 'string'
+        ? fields.notas
+        : typeof fields.note === 'string'
+          ? fields.note
+          : '';
+  const note = rawNote.trim();
+  return note || null;
+}
+
 function progressColor(tone: SummaryTone): string {
   if (tone === 'done') return colors.sage;
   if (tone === 'partial') return colors.amberSoft;
@@ -164,6 +178,7 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArch
   const delivery = deliverySummary(order);
   const payment = paymentSummary(order);
   const amount = isValidMoney(orderAmount(order)) ? orderAmount(order) : 0;
+  const note = noteText(order);
 
   return (
     <View style={styles.card}>
@@ -171,7 +186,6 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArch
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{order.name}</Text>
           <Text style={styles.detail}>{itemsLabel(order)}</Text>
-          {order.nota ? <Text style={styles.note} numberOfLines={2}>{order.nota}</Text> : null}
         </View>
         <View style={styles.right}>
           <Text style={styles.amount}>{formatARS(amount)}</Text>
@@ -190,6 +204,14 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArch
         {archived ? (
           <View style={styles.archiveLine}>
             <Chip label="Archivado" tone="done" />
+          </View>
+        ) : null}
+        {note ? (
+          <View style={styles.noteBox}>
+            <Text style={styles.note} numberOfLines={3}>
+              <Text style={styles.noteLabel}>Nota: </Text>
+              {note}
+            </Text>
           </View>
         ) : null}
         <SummaryRow summary={delivery} />
@@ -251,7 +273,6 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   name: { fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
   detail: { fontSize: 14, fontFamily: fonts.sans, color: colors.inkSoft, marginTop: 3 },
-  note: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter, marginTop: 5 },
   right: { alignItems: 'flex-end', gap: 6 },
   amount: { fontSize: 17, fontFamily: fonts.sansExtra, color: colors.ink },
   assignee: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -266,6 +287,14 @@ const styles = StyleSheet.create({
   assigneeName: { fontSize: 12.5, fontFamily: fonts.sansSemi, color: 'rgba(45,42,40,0.6)' },
   summary: { gap: 8, marginTop: 12 },
   archiveLine: { flexDirection: 'row' },
+  noteBox: {
+    backgroundColor: colors.petalBgFaint,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  note: { fontSize: 13, lineHeight: 18, fontFamily: fonts.sans, color: colors.inkSoft },
+  noteLabel: { fontFamily: fonts.sansBold, color: colors.roseText },
   summaryRow: { gap: 5 },
   summaryLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.sansSemi, color: colors.inkSoft },
