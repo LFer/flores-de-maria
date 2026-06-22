@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Pressable, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { BottomSheet } from '../components/BottomSheet';
@@ -66,6 +66,7 @@ export function NuevoPedidoSheet({
   const [nota, setNota] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const skipQuantityRecalc = useRef(false);
 
   // Changing the box quantities always recalculates the suggested importe,
@@ -95,6 +96,7 @@ export function NuevoPedidoSheet({
       setNota(order.nota ?? '');
       setError(null);
       setBusy(false);
+      setDeleting(false);
       return;
     }
 
@@ -113,6 +115,7 @@ export function NuevoPedidoSheet({
     setNota('');
     setError(null);
     setBusy(false);
+    setDeleting(false);
   };
 
   const onSave = async () => {
@@ -167,12 +170,62 @@ export function NuevoPedidoSheet({
     }
   };
 
+  const onDelete = async () => {
+    if (!order) return;
+
+    setError(null);
+    setDeleting(true);
+    try {
+      await orderService.deleteOrder(order.id);
+      reset();
+      onClose();
+    } catch (error) {
+      console.error('[NuevoPedidoSheet] deleteOrder failed', { orderId: order.id, error });
+      Alert.alert('No se pudo eliminar', 'No pudimos eliminar el pedido. Probá nuevamente.');
+      setError('No pudimos eliminar el pedido. Probá nuevamente.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!order) return;
+
+    Alert.alert('Eliminar pedido', 'Este pedido se quitará también de la caja si tenía cobros registrados. ¿Querés eliminarlo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () => {
+          void onDelete();
+        },
+      },
+    ]);
+  };
+
   return (
     <BottomSheet
       visible={visible}
       onClose={onClose}
       title={editing ? 'Editar pedido' : 'Nuevo pedido'}
-      footer={<PrimaryButton label={busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Guardar pedido'} onPress={onSave} disabled={busy} />}
+      footer={
+        <View style={styles.footer}>
+          <PrimaryButton
+            label={busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Guardar pedido'}
+            onPress={onSave}
+            disabled={busy || deleting}
+          />
+          {editing ? (
+            <Pressable
+              onPress={confirmDelete}
+              disabled={busy || deleting}
+              style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed, (busy || deleting) && styles.deleteButtonDisabled]}
+            >
+              <Text style={styles.deleteText}>{deleting ? 'Eliminando…' : 'Eliminar pedido'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      }
     >
       <ScrollView
         contentContainerStyle={styles.body}
@@ -259,9 +312,19 @@ function CajaRow({ title, value, onDec, onInc }: { title: string; value: number;
 
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 36, gap: 16 },
+  footer: { gap: 10 },
   field: { gap: 8 },
   row: { flexDirection: 'row', gap: 12 },
   error: { color: colors.rose, fontFamily: fonts.sansSemi, fontSize: 13 },
+  deleteButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    borderRadius: 999,
+  },
+  deleteButtonPressed: { opacity: 0.72 },
+  deleteButtonDisabled: { opacity: 0.45 },
+  deleteText: { fontSize: 14, fontFamily: fonts.sansBold, color: colors.roseText },
   cajaRow: {
     flexDirection: 'row',
     alignItems: 'center',

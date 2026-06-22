@@ -2,7 +2,7 @@
 // Firebase-backed when configured; in the mock it just echoes the local URI so
 // the UI can still preview the picked image.
 import * as FileSystem from 'expo-file-system/legacy';
-import { ref, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage, isFirebaseConfigured, auth } from './firebaseService';
 
 function fileExtensionFromMimeType(mimeType?: string): string {
@@ -40,6 +40,12 @@ function downloadUrlFromToken(bucket: string, path: string, token: string): stri
 export const storageService = {
   /** Upload a comprobante image and return its download URL. */
   async uploadComprobante(localUri: string, mimeType?: string): Promise<string> {
+    const result = await this.uploadComprobanteWithPath(localUri, mimeType);
+    return result.url;
+  },
+
+  /** Upload a comprobante image and return both its download URL and Storage path. */
+  async uploadComprobanteWithPath(localUri: string, mimeType?: string): Promise<{ url: string; path?: string }> {
     if (isFirebaseConfigured && storage) {
       const currentUser = auth?.currentUser;
       const uid = currentUser?.uid;
@@ -113,7 +119,7 @@ export const storageService = {
             bucket,
             usedToken: true,
           });
-          return downloadURL;
+          return { url: downloadURL, path };
         }
 
         const downloadURL = await getDownloadURL(ref(storage, path));
@@ -123,7 +129,7 @@ export const storageService = {
           bucket,
           usedToken: false,
         });
-        return downloadURL;
+        return { url: downloadURL, path };
       } catch (error) {
         const details = errorDetails(error);
         console.error('[storageService] uploadReceipt failed', {
@@ -141,6 +147,11 @@ export const storageService = {
       }
     }
     // Mock: echo the local URI back so the picked image can be previewed.
-    return localUri;
+    return { url: localUri };
+  },
+
+  async deleteComprobante(path?: string): Promise<void> {
+    if (!path || !isFirebaseConfigured || !storage) return;
+    await deleteObject(ref(storage, path));
   },
 };

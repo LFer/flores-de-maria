@@ -10,6 +10,7 @@ import {
   doc,
   query,
   orderBy,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebaseService';
@@ -278,6 +279,39 @@ export const orderService = {
     };
 
     await patchOrder(id, patch);
+  },
+
+  async deleteOrder(id: string): Promise<void> {
+    const order = await readOrder(id);
+    if (!order || !isCurrentOrder(order)) return;
+
+    if (isFirebaseConfigured && db) {
+      const firestore = db;
+      const movementIds = new Set(order.paymentMovementIds);
+      if (order.paymentMovementId) movementIds.add(order.paymentMovementId);
+
+      const movementQuery = query(collection(firestore, CASH_COL), where('orderId', '==', id));
+      const movementSnap = await getDocs(movementQuery);
+      movementSnap.docs.forEach((movementDoc) => movementIds.add(movementDoc.id));
+
+      const batch = writeBatch(firestore);
+      batch.delete(doc(firestore, COL, id));
+      movementIds.forEach((movementId) => {
+        batch.delete(doc(firestore, CASH_COL, movementId));
+      });
+      await batch.commit();
+      return;
+    }
+
+    const movementIds = new Set(order.paymentMovementIds);
+    if (order.paymentMovementId) movementIds.add(order.paymentMovementId);
+    const matchingMovements = (await cashService.listCashMovementsOnce()).filter((movement) => movement.orderId === id);
+    matchingMovements.forEach((movement) => movementIds.add(movement.id));
+
+    mock.remove(id);
+    for (const movementId of movementIds) {
+      await cashService.deleteCashMovement(movementId);
+    }
   },
 
   async registerPayment(id: string, paidItems: PaymentInput[]): Promise<void> {

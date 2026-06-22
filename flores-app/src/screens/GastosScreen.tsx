@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, Modal, Image, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, Modal, Image, RefreshControl, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -7,6 +7,7 @@ import { fonts } from '../theme/fonts';
 import { cardShadow, listCardShadow } from '../theme/shadows';
 import { Fab } from '../components/Fab';
 import { LogoutButton } from '../components/LogoutButton';
+import { TrashIcon } from '../components/icons';
 import { NuevoGastoSheet } from './NuevoGastoSheet';
 import { expenseService } from '../services';
 import type { Expense } from '../types';
@@ -19,6 +20,7 @@ export function GastosScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [receipt, setReceipt] = useState<Expense | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
   useEffect(() => expenseService.subscribe(setExpenses), []);
 
@@ -35,6 +37,34 @@ export function GastosScreen() {
   }, []);
 
   const totalGastos = expenses.reduce((s, e) => s + e.amount, 0);
+
+  const deleteExpense = useCallback(async (expense: Expense) => {
+    setDeletingExpenseId(expense.id);
+    try {
+      await expenseService.deleteExpense(expense.id);
+      if (receipt?.id === expense.id) setReceipt(null);
+      const freshExpenses = await expenseService.listOnce();
+      setExpenses(freshExpenses);
+    } catch (error) {
+      console.error('[GastosScreen] deleteExpense failed', { expenseId: expense.id, error });
+      Alert.alert('No se pudo eliminar', 'No pudimos eliminar el gasto. Probá nuevamente.');
+    } finally {
+      setDeletingExpenseId(null);
+    }
+  }, [receipt?.id]);
+
+  const confirmDeleteExpense = useCallback((expense: Expense) => {
+    Alert.alert('Eliminar gasto', 'Este gasto se quitará también de la caja. ¿Querés eliminarlo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () => {
+          void deleteExpense(expense);
+        },
+      },
+    ]);
+  }, [deleteExpense]);
 
   return (
     <View style={styles.root}>
@@ -69,8 +99,9 @@ export function GastosScreen() {
         }
         renderItem={({ item }) => (
           <Pressable
-            disabled={!item.comprobanteUrl}
-            onPress={() => setReceipt(item)}
+            onPress={() => {
+              if (item.comprobanteUrl) setReceipt(item);
+            }}
             style={[styles.row, listCardShadow]}
           >
             <View style={styles.rowLeft}>
@@ -89,6 +120,21 @@ export function GastosScreen() {
             <View style={styles.rowRight}>
               {item.comprobanteUrl ? <Text style={styles.receiptLabel}>Ver foto</Text> : null}
               <Text style={styles.rowAmount}>−{formatARS(item.amount)}</Text>
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  confirmDeleteExpense(item);
+                }}
+                disabled={deletingExpenseId === item.id}
+                style={({ pressed }) => [
+                  styles.deleteButton,
+                  pressed && styles.deleteButtonPressed,
+                  deletingExpenseId === item.id && styles.deleteButtonDisabled,
+                ]}
+                hitSlop={8}
+              >
+                <TrashIcon size={15} color={colors.roseText} />
+              </Pressable>
             </View>
           </Pressable>
         )}
@@ -167,9 +213,19 @@ const styles = StyleSheet.create({
   receiptThumb: { width: 34, height: 34, borderRadius: 10 },
   rowName: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
   rowDetail: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter },
-  rowRight: { alignItems: 'flex-end', gap: 3 },
+  rowRight: { alignItems: 'flex-end', gap: 5 },
   receiptLabel: { fontSize: 11.5, fontFamily: fonts.sansBold, color: colors.sageDeep },
   rowAmount: { fontSize: 17, fontFamily: fonts.sansExtra, color: colors.roseText },
+  deleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.petalBgFaint,
+  },
+  deleteButtonPressed: { opacity: 0.74 },
+  deleteButtonDisabled: { opacity: 0.45 },
   viewerBackdrop: {
     flex: 1,
     backgroundColor: colors.overlay,

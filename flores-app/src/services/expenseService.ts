@@ -7,10 +7,12 @@ import {
   collection,
   onSnapshot,
   doc,
+  getDoc,
   getDocs,
   writeBatch,
   query,
   orderBy,
+  where,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebaseService';
 import { storageService } from './storageService';
@@ -48,9 +50,11 @@ export const expenseService = {
   async add(input: NewExpenseInput): Promise<void> {
     try {
       const { comprobanteLocalUri, ...fields } = input;
-      const receiptUrl = comprobanteLocalUri
-        ? await storageService.uploadComprobante(comprobanteLocalUri, input.comprobanteMimeType)
+      const receipt = comprobanteLocalUri
+        ? await storageService.uploadComprobanteWithPath(comprobanteLocalUri, input.comprobanteMimeType)
         : undefined;
+      const receiptUrl = receipt?.url;
+      const receiptPath = receipt?.path;
 
       const responsibleName = fields.responsibleName ?? authService.currentUserName();
       const responsibleId = fields.responsibleId ?? authService.currentUserId();
@@ -65,7 +69,11 @@ export const expenseService = {
         date: fields.date,
         createdAt: Date.now(),
       };
-      if (receiptUrl) expenseDoc.comprobanteUrl = receiptUrl;
+      if (receiptUrl) {
+        expenseDoc.comprobanteUrl = receiptUrl;
+        expenseDoc.receiptUrl = receiptUrl;
+      }
+      if (receiptPath) expenseDoc.receiptPath = receiptPath;
       if (responsibleName) expenseDoc.responsibleName = responsibleName;
       if (responsibleId) expenseDoc.responsibleId = responsibleId;
 
@@ -73,6 +81,7 @@ export const expenseService = {
         const batch = writeBatch(db);
         const expenseRef = doc(collection(db, COL));
         const movementRef = doc(collection(db, 'cash_movements'));
+        expenseDoc.cashMovementId = movementRef.id;
         batch.set(expenseRef, expenseDoc);
         batch.set(
           movementRef,
@@ -83,6 +92,7 @@ export const expenseService = {
             description,
             expenseId: expenseRef.id,
             receiptUrl,
+            receiptPath,
             responsibleName,
             responsibleId,
           }),
@@ -94,16 +104,80 @@ export const expenseService = {
       // Mock: write both collections sequentially.
       const expenseId = genId('e');
       mock.add({ id: expenseId, ...(expenseDoc as Omit<Expense, 'id'>) });
-      await cashService.createExpenseMovement({
+      const cashMovementId = await cashService.createExpenseMovement({
         expenseId,
         amount: fields.amount,
         description,
         receiptUrl,
+        receiptPath,
         responsibleName,
         responsibleId,
       });
+      mock.update(expenseId, { cashMovementId, receiptUrl, receiptPath });
     } catch (error) {
       throw error;
+    }
+  },
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    if (isFirebaseConfigured && db) {
+      const firestore = db;
+      const expenseRef = doc(firestore, COL, expenseId);
+      const expenseSnap = await getDoc(expenseRef);
+      if (!expenseSnap.exists()) {
+        console.warn('[expenseService] deleteExpense called for missing expense', { expenseId });
+        return;
+      }
+
+      const expense = { id: expenseSnap.id, ...(expenseSnap.data() as Omit<Expense, 'id'>) };
+      const movementIds = new Set<string>();
+      if (expense.cashMovementId) movementIds.add(expense.cashMovementId);
+
+      const movementQuery = query(collection(firestore, 'cash_movements'), where('expenseId', '==', expenseId));
+      const movementSnap = await getDocs(movementQuery);
+      movementSnap.docs.forEach((movementDoc) => movementIds.add(movementDoc.id));
+
+      if (movementIds.size === 0) {
+        console.warn('[expenseService] deleteExpense found no matching cash movement', { expenseId });
+      }
+
+      const batch = writeBatch(firestore);
+      batch.delete(expenseRef);
+      movementIds.forEach((movementId) => {
+        batch.delete(doc(firestore, 'cash_movements', movementId));
+      });
+      await batch.commit();
+
+      try {
+        await storageService.deleteComprobante(expense.receiptPath);
+      } catch (error) {
+        console.warn('[expenseService] receipt delete failed after expense delete', {
+          expenseId,
+          receiptPath: expense.receiptPath,
+          error,
+        });
+      }
+      return;
+    }
+
+    const expense = mock.get(expenseId);
+    if (!expense) {
+      console.warn('[expenseService] deleteExpense called for missing mock expense', { expenseId });
+      return;
+    }
+
+    const movementIds = new Set<string>();
+    if (expense.cashMovementId) movementIds.add(expense.cashMovementId);
+    const matchingMovements = (await cashService.listCashMovementsOnce()).filter((movement) => movement.expenseId === expenseId);
+    matchingMovements.forEach((movement) => movementIds.add(movement.id));
+
+    if (movementIds.size === 0) {
+      console.warn('[expenseService] deleteExpense found no matching mock cash movement', { expenseId });
+    }
+
+    mock.remove(expenseId);
+    for (const movementId of movementIds) {
+      await cashService.deleteCashMovement(movementId);
     }
   },
 };

@@ -8,6 +8,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   orderBy,
@@ -44,6 +45,7 @@ export function buildCashMovement(input: NewCashMovementInput): Omit<CashMovemen
   if (input.orderId) doc.orderId = input.orderId;
   if (input.expenseId) doc.expenseId = input.expenseId;
   if (input.receiptUrl) doc.receiptUrl = input.receiptUrl;
+  if (input.receiptPath) doc.receiptPath = input.receiptPath;
   return doc as Omit<CashMovement, 'id'>;
 }
 
@@ -89,6 +91,35 @@ export const cashService = {
     mock.remove(id);
   },
 
+  async deleteStandaloneCashMovement(id: string): Promise<void> {
+    if (isFirebaseConfigured && db) {
+      const movementRef = doc(db, COL, id);
+      const movementSnap = await getDoc(movementRef);
+      if (!movementSnap.exists()) {
+        console.warn('[cashService] deleteStandaloneCashMovement called for missing movement', { id });
+        return;
+      }
+
+      const movement = { id: movementSnap.id, ...(movementSnap.data() as Omit<CashMovement, 'id'>) };
+      if (movement.type !== 'parish_delivery' && movement.type !== 'adjustment') {
+        throw new Error(`No se puede eliminar un movimiento vinculado desde Caja: ${movement.type}`);
+      }
+
+      await deleteDoc(movementRef);
+      return;
+    }
+
+    const movement = mock.get(id);
+    if (!movement) {
+      console.warn('[cashService] deleteStandaloneCashMovement called for missing mock movement', { id });
+      return;
+    }
+    if (movement.type !== 'parish_delivery' && movement.type !== 'adjustment') {
+      throw new Error(`No se puede eliminar un movimiento vinculado desde Caja: ${movement.type}`);
+    }
+    mock.remove(id);
+  },
+
   // ── Typed creators ─────────────────────────────────────────────
   createOrderPaymentMovement(order: Order, amount = order.totalAmount - order.paidAmount): Promise<string> {
     return this.createCashMovement({
@@ -105,6 +136,7 @@ export const cashService = {
     amount: number;
     description: string;
     receiptUrl?: string;
+    receiptPath?: string;
     responsibleName?: string;
     responsibleId?: string;
   }): Promise<string> {

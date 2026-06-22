@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authService } from '../services';
 import type { AppUser } from '../types';
+import { isFioUser } from '../utils/fioFlowers';
 
 type AuthContextValue = {
   user: AppUser | null;
@@ -18,6 +19,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = authService.onAuthChange((u) => {
+      if (isFioUser(u?.uid)) {
+        console.log('fio se conecto');
+      }
       setUser(u);
       setInitializing(false);
     });

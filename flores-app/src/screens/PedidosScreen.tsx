@@ -18,10 +18,12 @@ import { PrimaryButton } from '../components/ui';
 import { Stepper } from '../components/Stepper';
 import { orderService } from '../services';
 import type { Order } from '../types';
+import type { FioFlower } from '../data/fioFlowers';
 import type { SpiritualFlower } from '../data/spiritualFlowers';
 import { formatARS } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { sameUserName, userDisplayName } from '../lib/userDisplay';
+import { maybeGetDailyFioFlower } from '../utils/fioFlowers';
 import { maybeGetDailySpiritualFlower, type SpiritualFlowerContext } from '../utils/spiritualFlowers';
 
 type Filter = 'todos' | 'mios';
@@ -67,6 +69,7 @@ export function PedidosScreen() {
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [spiritualFlower, setSpiritualFlower] = useState<SpiritualFlower | null>(null);
+  const [fioFlower, setFioFlower] = useState<FioFlower | null>(null);
 
   useEffect(() => orderService.subscribe(setOrders), []);
 
@@ -75,10 +78,30 @@ export function PedidosScreen() {
     if (flower) setSpiritualFlower(flower);
   }, []);
 
+  const tryShowHomeFlower = useCallback(async () => {
+    const privateFlower = await maybeGetDailyFioFlower(user?.uid, 'home', 0.2);
+    if (privateFlower) {
+      setFioFlower(privateFlower);
+      return;
+    }
+
+    await tryShowSpiritualFlower('home', 0.3);
+  }, [tryShowSpiritualFlower, user?.uid]);
+
+  const tryShowOrderCreatedFlower = useCallback(async () => {
+    const privateFlower = await maybeGetDailyFioFlower(user?.uid, 'order_created', 0.15);
+    if (privateFlower) {
+      setFioFlower(privateFlower);
+      return;
+    }
+
+    await tryShowSpiritualFlower('order_created', 0.25);
+  }, [tryShowSpiritualFlower, user?.uid]);
+
   useFocusEffect(
     useCallback(() => {
-      void tryShowSpiritualFlower('home', 0.3);
-    }, [tryShowSpiritualFlower]),
+      void tryShowHomeFlower();
+    }, [tryShowHomeFlower]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -216,7 +239,7 @@ export function PedidosScreen() {
         visible={newOrderOpen}
         onClose={() => setNewOrderOpen(false)}
         onOrderCreated={() => {
-          void tryShowSpiritualFlower('order_created', 0.25);
+          void tryShowOrderCreatedFlower();
         }}
       />
       <NuevoPedidoSheet
@@ -235,6 +258,11 @@ export function PedidosScreen() {
         onClose={() => setPaymentSheetOpen(false)}
       />
       <SpiritualFlowerModal flower={spiritualFlower} onClose={() => setSpiritualFlower(null)} />
+      <SpiritualFlowerModal
+        flower={fioFlower}
+        onClose={() => setFioFlower(null)}
+        title="Una florecita para Fío"
+      />
     </View>
   );
 }

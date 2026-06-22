@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -7,6 +7,7 @@ import { fonts } from '../theme/fonts';
 import { cardShadow, listCardShadow } from '../theme/shadows';
 import { Fab } from '../components/Fab';
 import { LogoutButton } from '../components/LogoutButton';
+import { TrashIcon } from '../components/icons';
 import { SpiritualFlowerModal } from '../components/SpiritualFlowerModal';
 import { NuevoMovimientoSheet } from './NuevoMovimientoSheet';
 import { cashService } from '../services';
@@ -29,6 +30,7 @@ export function CajaScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [spiritualFlower, setSpiritualFlower] = useState<SpiritualFlower | null>(null);
+  const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
 
   useEffect(() => cashService.listCashMovements(setMovements), []);
 
@@ -50,6 +52,33 @@ export function CajaScreen() {
     const flower = await maybeGetDailySpiritualFlower('parish_delivery', 0.5);
     if (flower) setSpiritualFlower(flower);
   }, []);
+
+  const deleteMovement = useCallback(async (movement: CashMovement) => {
+    setDeletingMovementId(movement.id);
+    try {
+      await cashService.deleteStandaloneCashMovement(movement.id);
+      const freshMovements = await cashService.listCashMovementsOnce();
+      setMovements(freshMovements);
+    } catch (error) {
+      console.error('[CajaScreen] deleteCashMovement failed', { movementId: movement.id, type: movement.type, error });
+      Alert.alert('No se pudo eliminar', 'No pudimos eliminar el movimiento. Probá nuevamente.');
+    } finally {
+      setDeletingMovementId(null);
+    }
+  }, []);
+
+  const confirmDeleteMovement = useCallback((movement: CashMovement) => {
+    Alert.alert('Eliminar movimiento', 'Este movimiento se quitará de la caja. ¿Querés eliminarlo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () => {
+          void deleteMovement(movement);
+        },
+      },
+    ]);
+  }, [deleteMovement]);
 
   return (
     <View style={styles.root}>
@@ -95,6 +124,7 @@ export function CajaScreen() {
         }
         renderItem={({ item }) => {
           const isIn = item.direction === 'in';
+          const canDelete = item.type === 'parish_delivery' || item.type === 'adjustment';
           return (
             <View style={[styles.row, listCardShadow]}>
               <View style={styles.rowLeft}>
@@ -106,9 +136,25 @@ export function CajaScreen() {
                   <Text style={styles.rowDetail}>{TYPE_LABEL[item.type]} · {shortDate(new Date(item.createdAt))}</Text>
                 </View>
               </View>
-              <Text style={[styles.rowAmount, { color: isIn ? colors.sageDeep : colors.roseText }]}>
-                {isIn ? '+' : '−'}{formatARS(item.amount)}
-              </Text>
+              <View style={styles.rowRight}>
+                <Text style={[styles.rowAmount, { color: isIn ? colors.sageDeep : colors.roseText }]}>
+                  {isIn ? '+' : '−'}{formatARS(item.amount)}
+                </Text>
+                {canDelete ? (
+                  <Pressable
+                    onPress={() => confirmDeleteMovement(item)}
+                    disabled={deletingMovementId === item.id}
+                    style={({ pressed }) => [
+                      styles.deleteButton,
+                      pressed && styles.deleteButtonPressed,
+                      deletingMovementId === item.id && styles.deleteButtonDisabled,
+                    ]}
+                    hitSlop={8}
+                  >
+                    <TrashIcon size={15} color={colors.roseText} />
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           );
         }}
@@ -185,5 +231,16 @@ const styles = StyleSheet.create({
   iconDot: { width: 8, height: 8, borderRadius: 4 },
   rowName: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
   rowDetail: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter },
+  rowRight: { alignItems: 'flex-end', gap: 5 },
   rowAmount: { fontSize: 17, fontFamily: fonts.sansExtra },
+  deleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.petalBgFaint,
+  },
+  deleteButtonPressed: { opacity: 0.74 },
+  deleteButtonDisabled: { opacity: 0.45 },
 });

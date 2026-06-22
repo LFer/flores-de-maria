@@ -92,6 +92,9 @@ export interface Expense {
   amount: number;
   date: string; // "16 jun"
   comprobanteUrl?: string; // receipt image in Firebase Storage
+  receiptUrl?: string;
+  receiptPath?: string;
+  cashMovementId?: string;
   responsibleName?: string;
   responsibleId?: string;
   createdAt?: number;
@@ -99,7 +102,7 @@ export interface Expense {
 
 // `comprobanteLocalUri` is the picked image to upload; the service swaps it for
 // a Storage `comprobanteUrl`.
-export type NewExpenseInput = Omit<Expense, 'id' | 'createdAt' | 'comprobanteUrl'> & {
+export type NewExpenseInput = Omit<Expense, 'id' | 'createdAt' | 'comprobanteUrl' | 'receiptUrl' | 'receiptPath' | 'cashMovementId'> & {
   comprobanteLocalUri?: string;
   comprobanteMimeType?: string;
 };
@@ -119,6 +122,7 @@ export interface CashMovement {
   orderId?: string;
   expenseId?: string;
   receiptUrl?: string;
+  receiptPath?: string;
   createdAt: number;
   createdBy?: string;
 }

@@ -8,12 +8,16 @@ import { fonts } from '../theme/fonts';
 import { cardShadow } from '../theme/shadows';
 import type { SpiritualFlower } from '../data/spiritualFlowers';
 
+type ModalFlower = Pick<SpiritualFlower, 'text'> &
+  Partial<Pick<SpiritualFlower, 'is_exact' | 'display_author' | 'source' | 'reference'>>;
+
 type Props = {
-  flower: SpiritualFlower | null;
+  flower: ModalFlower | null;
   onClose: () => void;
+  title?: string;
 };
 
-function exactAttribution(flower: SpiritualFlower): string | null {
+function exactAttribution(flower: ModalFlower): string | null {
   if (!flower.is_exact) return null;
 
   const details = [flower.source, flower.reference].filter(Boolean).join(', ');
@@ -21,7 +25,7 @@ function exactAttribution(flower: SpiritualFlower): string | null {
   return flower.display_author || details || null;
 }
 
-export function SpiritualFlowerModal({ flower, onClose }: Props) {
+export function SpiritualFlowerModal({ flower, onClose, title = 'Florecita' }: Props) {
   const insets = useSafeAreaInsets();
   const attribution = flower ? exactAttribution(flower) : null;
 
@@ -34,7 +38,7 @@ export function SpiritualFlowerModal({ flower, onClose }: Props) {
             <View style={styles.mark}>
               <FlowerMark size={28} />
             </View>
-            <Text style={styles.title}>Florecita</Text>
+            <Text style={styles.title}>{title}</Text>
             <Text style={styles.text}>{flower.text}</Text>
             {attribution ? <Text style={styles.attribution}>{attribution}</Text> : null}
             <PrimaryButton label="Cerrar" onPress={onClose} style={styles.button} />

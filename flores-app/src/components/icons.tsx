@@ -56,6 +56,17 @@ export function CalendarIcon({ size = 15, color = colors.olive }: IconProps) {
   );
 }
 
+export function TrashIcon({ size = 17, color = colors.stone }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
+      <Path d="M3.5 5h11" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M7 5V3.8c0-.5.4-.8.9-.8h2.2c.5 0 .9.3.9.8V5" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M5 7l.6 7.1c.1.8.7 1.4 1.5 1.4h3.8c.8 0 1.4-.6 1.5-1.4L13 7" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M8 8.5v4.5M10 8.5v4.5" stroke={color} strokeWidth={1.4} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 // ── Bottom-tab icons ─────────────────────────────────────────────
 export function TabPedidos({ size = 24, color }: IconProps) {
   const c = color ?? colors.mutedTab;
