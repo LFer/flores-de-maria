@@ -9,6 +9,7 @@ import { FlowerMark } from '../components/Flower';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { OrderCard } from '../components/OrderCard';
 import { Fab } from '../components/Fab';
+import { LogoutButton } from '../components/LogoutButton';
 import { NuevoPedidoSheet } from './NuevoPedidoSheet';
 import { BottomSheet } from '../components/BottomSheet';
 import { PrimaryButton } from '../components/ui';
@@ -16,6 +17,7 @@ import { Stepper } from '../components/Stepper';
 import { orderService } from '../services';
 import type { Order } from '../types';
 import { formatARS } from '../lib/format';
+import { useAuth } from '../lib/auth';
 import { CURRENT_USER } from '../lib/constants';
 
 type Filter = 'todos' | 'mios';
@@ -25,6 +27,7 @@ const paymentBalance = (order: Order): number => Math.max(0, order.totalAmount -
 export function PedidosScreen() {
   const insets = useSafeAreaInsets();
   const tabH = useBottomTabBarHeight();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<Filter>('todos');
   const [newOrderOpen, setNewOrderOpen] = useState(false);
@@ -57,9 +60,13 @@ export function PedidosScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
+            <Text style={styles.greeting}>Hola, {user?.displayName?.trim() || 'María'}</Text>
             <View style={styles.titleRow}>
-              <FlowerMark size={22} />
-              <Text style={styles.title}>Pedidos</Text>
+              <View style={styles.titleLeft}>
+                <FlowerMark size={22} />
+                <Text style={styles.title}>Pedidos</Text>
+              </View>
+              <LogoutButton />
             </View>
 
             <View style={[styles.summary, cardShadow]}>
@@ -314,7 +321,21 @@ function AmountCell({ label, value, emphasized }: { label: string; value: string
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   listContent: { paddingHorizontal: 18, paddingTop: 0 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4, paddingBottom: 2 },
+  greeting: {
+    marginLeft: 4,
+    marginBottom: 8,
+    fontSize: 15,
+    fontFamily: fonts.sansSemi,
+    color: colors.inkSoft,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingBottom: 2,
+  },
+  titleLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { fontFamily: fonts.serifSemi, fontSize: 34, color: colors.ink, letterSpacing: 0.4 },
   summary: {
     marginTop: 14,

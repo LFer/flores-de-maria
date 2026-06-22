@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,24 @@ import { fonts } from '../theme/fonts';
 import { FlowerLogo } from '../components/Flower';
 import { Label, Input, PrimaryButton } from '../components/ui';
 import { useAuth } from '../lib/auth';
+
+function friendlyLoginError(error: unknown): string {
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code ?? '') : '';
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+    case 'auth/invalid-login-credentials':
+      return 'Esa combinación de email y contraseña no coincide. Revisala e intentá de nuevo.';
+    case 'auth/too-many-requests':
+      return 'Demasiados intentos seguidos. Esperá un momento y probá de nuevo.';
+    default: {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('Ingresá email y contraseña')) return message;
+      return 'No pudimos iniciar sesión. Revisá tus datos e intentá otra vez.';
+    }
+  }
+}
 
 export function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -25,7 +43,7 @@ export function LoginScreen() {
     try {
       await signIn(email.trim(), password);
     } catch (e: any) {
-      setError(e?.message ?? 'No pudimos iniciar sesión.');
+      setError(friendlyLoginError(e));
     } finally {
       setBusy(false);
     }
@@ -33,62 +51,71 @@ export function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.root, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 28 }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.root}
     >
-      {/* logo block */}
-      <View style={styles.logoBlock}>
-        <FlowerLogo size={78} />
-        <Text style={styles.brand}>Flores de María</Text>
-        <View style={styles.tagRow}>
-          <View style={styles.tagLine} />
-          <Text style={styles.tag}>Sólo Dios basta</Text>
-          <View style={styles.tagLine} />
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 28 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.logoBlock}>
+          <FlowerLogo size={78} />
+          <Text style={styles.brand}>Flores de María</Text>
+          <View style={styles.tagRow}>
+            <View style={styles.tagLine} />
+            <Text style={styles.tag}>Sólo Dios basta</Text>
+            <View style={styles.tagLine} />
+          </View>
         </View>
-      </View>
 
-      {/* form */}
-      <View style={styles.form}>
-        <View style={styles.field}>
-          <Label>Email</Label>
-          <Input
-            value={email}
-            onChangeText={setEmail}
-            placeholder="tu@email.com"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-          />
+        <View style={styles.form}>
+          <View style={styles.field}>
+            <Label>Email</Label>
+            <Input
+              value={email}
+              onChangeText={setEmail}
+              placeholder="tu@email.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              returnKeyType="next"
+            />
+          </View>
+          <View style={styles.field}>
+            <Label>Contraseña</Label>
+            <Input
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry={!showPassword}
+              autoComplete="password"
+              returnKeyType="done"
+              onSubmitEditing={onSubmit}
+              rightSlot={
+                <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={10}>
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color={colors.stone}
+                  />
+                </Pressable>
+              }
+            />
+          </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <PrimaryButton label={busy ? 'Ingresando…' : 'Ingresar'} onPress={onSubmit} disabled={busy} style={{ marginTop: 6 }} />
         </View>
-        <View style={styles.field}>
-          <Label>Contraseña</Label>
-          <Input
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry={!showPassword}
-            autoComplete="password"
-            rightSlot={
-              <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={10}>
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={22}
-                  color={colors.stone}
-                />
-              </Pressable>
-            }
-          />
-        </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <PrimaryButton label={busy ? 'Ingresando…' : 'Ingresar'} onPress={onSubmit} disabled={busy} style={{ marginTop: 6 }} />
-      </View>
 
-      {/* footer */}
-      <Pressable style={styles.footer} onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.footerText}>
-          ¿No tenés cuenta? <Text style={styles.footerLink}>Crear cuenta</Text>
-        </Text>
-      </Pressable>
+        <Pressable style={styles.footer} onPress={() => navigation.navigate('Register')}>
+          <Text style={styles.footerText}>
+            ¿No tenés cuenta? <Text style={styles.footerLink}>Crear cuenta</Text>
+          </Text>
+        </Pressable>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -97,6 +124,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  content: {
+    flexGrow: 1,
     paddingHorizontal: 34,
     justifyContent: 'space-between',
   },

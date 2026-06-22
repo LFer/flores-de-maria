@@ -6,6 +6,7 @@ import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { cardShadow, listCardShadow } from '../theme/shadows';
 import { Fab } from '../components/Fab';
+import { LogoutButton } from '../components/LogoutButton';
 import { NuevoMovimientoSheet } from './NuevoMovimientoSheet';
 import { cashService } from '../services';
 import type { CashMovement, CashMovementType } from '../types';
@@ -37,7 +38,10 @@ export function CajaScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
-            <Text style={styles.title}>Caja</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Caja</Text>
+              <LogoutButton />
+            </View>
 
             <View style={[styles.hero, cardShadow]}>
               <Text style={styles.heroLabel}>En caja</Text>
@@ -90,7 +94,13 @@ export function CajaScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   listContent: { paddingHorizontal: 22, paddingTop: 0 },
-  title: { fontFamily: fonts.serifSemi, fontSize: 34, color: colors.ink, marginBottom: 16 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: { fontFamily: fonts.serifSemi, fontSize: 34, color: colors.ink },
   hero: {
     backgroundColor: colors.card,
     borderWidth: 1,

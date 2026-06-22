@@ -36,6 +36,17 @@ export function CloseIcon({ size = 13, color = colors.stone }: IconProps) {
   );
 }
 
+export function LogoutIcon({ size = 18, color = colors.stoneDeep }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
+      <Path d="M6.5 3.5H3.8A1.3 1.3 0 002.5 4.8v8.4a1.3 1.3 0 001.3 1.3h2.7" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M9.5 6.5L12 9l-2.5 2.5" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M12 9H5.7" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M12.8 3.5h1.4A1.3 1.3 0 0115.5 4.8v8.4a1.3 1.3 0 01-1.3 1.3h-1.4" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function CalendarIcon({ size = 15, color = colors.olive }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">

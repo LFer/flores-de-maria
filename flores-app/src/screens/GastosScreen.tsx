@@ -6,6 +6,7 @@ import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { cardShadow, listCardShadow } from '../theme/shadows';
 import { Fab } from '../components/Fab';
+import { LogoutButton } from '../components/LogoutButton';
 import { NuevoGastoSheet } from './NuevoGastoSheet';
 import { expenseService } from '../services';
 import type { Expense } from '../types';
@@ -30,7 +31,10 @@ export function GastosScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
-            <Text style={styles.title}>Gastos</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Gastos</Text>
+              <LogoutButton />
+            </View>
 
             <View style={[styles.hero, cardShadow]}>
               <Text style={styles.heroLabel}>Total en insumos</Text>
@@ -67,7 +71,13 @@ export function GastosScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   listContent: { paddingHorizontal: 22, paddingTop: 0 },
-  title: { fontFamily: fonts.serifSemi, fontSize: 34, color: colors.ink, marginBottom: 16 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: { fontFamily: fonts.serifSemi, fontSize: 34, color: colors.ink },
   hero: {
     backgroundColor: colors.card,
     borderWidth: 1,
