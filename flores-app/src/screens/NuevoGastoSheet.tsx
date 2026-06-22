@@ -52,7 +52,12 @@ export function NuevoGastoSheet({ visible, onClose }: { visible: boolean; onClos
       });
       reset();
       onClose();
-    } catch {
+    } catch (error) {
+      console.error('[NuevoGastoSheet] saveExpense failed', {
+        hasReceipt: Boolean(comprobante),
+        mimeType: comprobanteMimeType,
+        error,
+      });
       Alert.alert(
         'No se pudo guardar el gasto',
         comprobante
