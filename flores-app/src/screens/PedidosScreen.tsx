@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, FlatList, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -21,8 +21,27 @@ import { useAuth } from '../lib/auth';
 import { CURRENT_USER } from '../lib/constants';
 
 type Filter = 'todos' | 'mios';
+type QuickFilter = 'todos' | 'entrega' | 'cobro';
 
 const paymentBalance = (order: Order): number => Math.max(0, order.totalAmount - order.paidAmount);
+
+const QUICK_FILTERS: { label: string; value: QuickFilter }[] = [
+  { label: 'Todos', value: 'todos' },
+  { label: 'Por entregar', value: 'entrega' },
+  { label: 'Por cobrar', value: 'cobro' },
+];
+
+function matchesQuickFilter(order: Order, quickFilter: QuickFilter): boolean {
+  if (quickFilter === 'entrega') return order.deliveryStatus !== 'delivered';
+  if (quickFilter === 'cobro') return order.paymentStatus !== 'paid';
+  return true;
+}
+
+function emptyMessage(quickFilter: QuickFilter): string {
+  if (quickFilter === 'entrega') return 'No hay pedidos pendientes de entregar.';
+  if (quickFilter === 'cobro') return 'No hay pedidos pendientes de cobrar.';
+  return 'No hay pedidos cargados todavía.';
+}
 
 export function PedidosScreen() {
   const insets = useSafeAreaInsets();
@@ -30,6 +49,7 @@ export function PedidosScreen() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<Filter>('todos');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [deliverySheetOpen, setDeliverySheetOpen] = useState(false);
@@ -47,14 +67,15 @@ export function PedidosScreen() {
     setPaymentSheetOpen(true);
   };
 
-  const pendingPaymentOrders = orders.filter((order) => paymentBalance(order) > 0);
+  const ownerFilteredOrders = filter === 'mios' ? orders.filter((order) => order.assignee === CURRENT_USER) : orders;
+  const filteredOrders = ownerFilteredOrders.filter((order) => matchesQuickFilter(order, quickFilter));
+  const pendingPaymentOrders = filteredOrders.filter((order) => paymentBalance(order) > 0);
   const totalPendiente = pendingPaymentOrders.reduce((sum, order) => sum + paymentBalance(order), 0);
-  const visible = filter === 'mios' ? orders.filter((order) => order.assignee === CURRENT_USER) : orders;
 
   return (
     <View style={styles.root}>
       <FlatList
-        data={visible}
+        data={filteredOrders}
         keyExtractor={(order) => order.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 96 }]}
         showsVerticalScrollIndicator={false}
@@ -72,12 +93,12 @@ export function PedidosScreen() {
             <View style={[styles.summary, cardShadow]}>
               <View style={{ gap: 3 }}>
                 <Text style={styles.summaryLabel}>Pendiente de cobro</Text>
-                <Text style={styles.summarySub}>{pendingPaymentOrders.length} pedidos con saldo</Text>
+                <Text style={styles.summarySub}>{pendingPaymentOrders.length} de {filteredOrders.length} pedidos con saldo</Text>
               </View>
               <Text style={styles.summaryAmount}>{formatARS(totalPendiente)}</Text>
             </View>
 
-            <View style={{ marginTop: 12 }}>
+            <View style={styles.ownerFilter}>
               <SegmentedControl
                 size="sm"
                 value={filter}
@@ -88,8 +109,28 @@ export function PedidosScreen() {
                 ]}
               />
             </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickFilters}
+            >
+              {QUICK_FILTERS.map((option) => {
+                const active = option.value === quickFilter;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setQuickFilter(option.value)}
+                    style={[styles.quickChip, active && styles.quickChipActive]}
+                  >
+                    <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         }
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage(quickFilter)}</Text>}
         renderItem={({ item }) => (
           <OrderCard
             order={item}
@@ -353,6 +394,35 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 12, fontFamily: fonts.sansBold, letterSpacing: 1, textTransform: 'uppercase', color: colors.olive },
   summarySub: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter },
   summaryAmount: { fontFamily: fonts.serifSemi, fontSize: 30, color: colors.rose },
+  ownerFilter: { marginTop: 12 },
+  quickFilters: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingTop: 10,
+    paddingBottom: 2,
+    paddingHorizontal: 1,
+  },
+  quickChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  quickChipActive: {
+    backgroundColor: colors.petalBgSoft,
+    borderColor: 'rgba(200,83,111,0.24)',
+  },
+  quickChipText: { fontSize: 12.5, fontFamily: fonts.sansBold, color: colors.inkSoft },
+  quickChipTextActive: { color: colors.roseText },
+  empty: {
+    marginTop: 18,
+    textAlign: 'center',
+    fontSize: 14,
+    fontFamily: fonts.sansSemi,
+    color: colors.inkSoft,
+  },
   sheetBody: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 12, gap: 16 },
   sheetHeader: { gap: 3 },
   sheetClient: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.ink },
