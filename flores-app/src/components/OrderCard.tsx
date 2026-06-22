@@ -6,7 +6,6 @@ import { listCardShadow } from '../theme/shadows';
 import { Chip } from './Chip';
 import { orderAmount, type Order } from '../types';
 import { formatARS } from '../lib/format';
-import { CURRENT_USER } from '../lib/constants';
 
 function itemsLabel(order: Order): string {
   if (!Array.isArray(order.items) || order.items.length === 0) return 'Sin cajas cargadas';
@@ -156,7 +155,8 @@ type Props = {
 };
 
 export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArchive, onUnarchive, showUnarchive }: Props) {
-  const esMaria = order.assignee === CURRENT_USER;
+  const assigneeInitial = order.assignee.trim().charAt(0).toLocaleUpperCase() || '?';
+  const assigneeIsMaria = order.assignee.trim().toLocaleLowerCase() === 'maría' || order.assignee.trim().toLocaleLowerCase() === 'maria';
   const deliveryDone = order.deliveryStatus === 'delivered';
   const paymentDone = order.paymentStatus === 'paid';
   const archived = order.archived === true;
@@ -171,13 +171,14 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArch
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{order.name}</Text>
           <Text style={styles.detail}>{itemsLabel(order)}</Text>
+          {order.nota ? <Text style={styles.note} numberOfLines={2}>{order.nota}</Text> : null}
         </View>
         <View style={styles.right}>
           <Text style={styles.amount}>{formatARS(amount)}</Text>
           <View style={styles.assignee}>
-            <View style={[styles.badge, { backgroundColor: esMaria ? colors.petalBg : colors.sageBg }]}>
-              <Text style={[styles.badgeLetter, { color: esMaria ? colors.roseText : colors.sageDeep }]}>
-                {esMaria ? 'M' : 'B'}
+            <View style={[styles.badge, { backgroundColor: assigneeIsMaria ? colors.petalBg : colors.sageBg }]}>
+              <Text style={[styles.badgeLetter, { color: assigneeIsMaria ? colors.roseText : colors.sageDeep }]}>
+                {assigneeInitial}
               </Text>
             </View>
             <Text style={styles.assigneeName}>{order.assignee}</Text>
@@ -250,6 +251,7 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   name: { fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
   detail: { fontSize: 14, fontFamily: fonts.sans, color: colors.inkSoft, marginTop: 3 },
+  note: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter, marginTop: 5 },
   right: { alignItems: 'flex-end', gap: 6 },
   amount: { fontSize: 17, fontFamily: fonts.sansExtra, color: colors.ink },
   assignee: { flexDirection: 'row', alignItems: 'center', gap: 6 },

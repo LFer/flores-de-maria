@@ -10,6 +10,8 @@ import { DateField } from '../components/DateField';
 import { orderService } from '../services';
 import { PRICE } from '../types';
 import { shortDate } from '../lib/format';
+import { useAuth } from '../lib/auth';
+import { userDisplayName } from '../lib/userDisplay';
 
 type EntregaState = 'ingresado' | 'entregado';
 type CobroState = 'sin' | 'cobrado';
@@ -17,6 +19,8 @@ type CobroState = 'sin' | 'cobrado';
 const suggestedAmount = (chica: number, grande: number) => chica * PRICE.chica + grande * PRICE.grande;
 
 export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { user } = useAuth();
+  const currentUserName = userDisplayName(user);
   const [cliente, setCliente] = useState('');
   const [chica, setChica] = useState(1);
   const [grande, setGrande] = useState(1);
@@ -68,7 +72,7 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
         name: cliente.trim() || 'Sin nombre',
         chica,
         grande,
-        assignee: 'María',
+        assignee: currentUserName,
         entregado: entrega === 'entregado',
         cobrado: cobro === 'cobrado',
         entrega: shortDate(fecha),

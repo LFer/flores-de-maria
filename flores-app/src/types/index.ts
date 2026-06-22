@@ -1,6 +1,6 @@
 // Domain models shared across services and screens.
 
-export type Assignee = 'María' | 'Belén';
+export type Assignee = string;
 
 // Box pricing (ARS). Matches the prototype: chica $250, grande $450.
 export const PRICE = { chica: 250, grande: 450 } as const;

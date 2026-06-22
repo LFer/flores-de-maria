@@ -18,7 +18,7 @@ import { orderService } from '../services';
 import type { Order } from '../types';
 import { formatARS } from '../lib/format';
 import { useAuth } from '../lib/auth';
-import { CURRENT_USER } from '../lib/constants';
+import { sameUserName, userDisplayName } from '../lib/userDisplay';
 
 type Filter = 'todos' | 'mios';
 type QuickFilter = 'activos' | 'entrega' | 'cobro' | 'archivados';
@@ -52,6 +52,7 @@ export function PedidosScreen() {
   const insets = useSafeAreaInsets();
   const tabH = useBottomTabBarHeight();
   const { user } = useAuth();
+  const currentUserName = userDisplayName(user);
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<Filter>('todos');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('activos');
@@ -106,7 +107,7 @@ export function PedidosScreen() {
     });
   };
 
-  const ownerFilteredOrders = filter === 'mios' ? orders.filter((order) => order.assignee === CURRENT_USER) : orders;
+  const ownerFilteredOrders = filter === 'mios' ? orders.filter((order) => sameUserName(order.assignee, currentUserName)) : orders;
   const filteredOrders = ownerFilteredOrders.filter((order) => matchesQuickFilter(order, quickFilter));
   const pendingPaymentOrders = filteredOrders.filter((order) => paymentBalance(order) > 0);
   const totalPendiente = pendingPaymentOrders.reduce((sum, order) => sum + paymentBalance(order), 0);
@@ -128,7 +129,7 @@ export function PedidosScreen() {
         }
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
-            <Text style={styles.greeting}>Hola, {user?.displayName?.trim() || 'María'}</Text>
+            <Text style={styles.greeting}>Hola, {currentUserName}</Text>
             <View style={styles.titleRow}>
               <View style={styles.titleLeft}>
                 <FlowerMark size={22} />
