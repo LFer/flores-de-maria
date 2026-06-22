@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, Modal, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -17,6 +17,7 @@ export function GastosScreen() {
   const tabH = useBottomTabBarHeight();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [receipt, setReceipt] = useState<Expense | null>(null);
 
   useEffect(() => expenseService.subscribe(setExpenses), []);
 
@@ -46,24 +47,54 @@ export function GastosScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.row, listCardShadow]}>
+          <Pressable
+            disabled={!item.comprobanteUrl}
+            onPress={() => setReceipt(item)}
+            style={[styles.row, listCardShadow]}
+          >
             <View style={styles.rowLeft}>
               <View style={styles.iconBox}>
-                <View style={styles.iconDot} />
+                {item.comprobanteUrl ? (
+                  <Image source={{ uri: item.comprobanteUrl }} style={styles.receiptThumb} />
+                ) : (
+                  <View style={styles.iconDot} />
+                )}
               </View>
               <View style={{ gap: 3 }}>
                 <Text style={styles.rowName}>{item.name}</Text>
                 <Text style={styles.rowDetail}>{item.detail} · {item.date}</Text>
               </View>
             </View>
-            <Text style={styles.rowAmount}>−{formatARS(item.amount)}</Text>
-          </View>
+            <View style={styles.rowRight}>
+              {item.comprobanteUrl ? <Text style={styles.receiptLabel}>Ver foto</Text> : null}
+              <Text style={styles.rowAmount}>−{formatARS(item.amount)}</Text>
+            </View>
+          </Pressable>
         )}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
       />
 
       <Fab onPress={() => setSheetOpen(true)} bottom={tabH + 18} />
       <NuevoGastoSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <Modal visible={Boolean(receipt)} transparent animationType="fade" onRequestClose={() => setReceipt(null)}>
+        <View style={styles.viewerBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setReceipt(null)} />
+          <View style={styles.viewer}>
+            <View style={styles.viewerHeader}>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={styles.viewerTitle}>{receipt?.name}</Text>
+                <Text style={styles.viewerSub}>{receipt ? `${receipt.detail} · ${receipt.date}` : ''}</Text>
+              </View>
+              <Pressable onPress={() => setReceipt(null)} style={styles.viewerClose} hitSlop={8}>
+                <Text style={styles.viewerCloseText}>Cerrar</Text>
+              </Pressable>
+            </View>
+            {receipt?.comprobanteUrl ? (
+              <Image source={{ uri: receipt.comprobanteUrl }} style={styles.viewerImage} resizeMode="contain" />
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -100,8 +131,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   iconBox: {
     width: 34,
     height: 34,
@@ -111,7 +143,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.petalSoft },
+  receiptThumb: { width: 34, height: 34, borderRadius: 10 },
   rowName: { fontSize: 16, fontFamily: fonts.sansBold, color: colors.ink },
   rowDetail: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSofter },
+  rowRight: { alignItems: 'flex-end', gap: 3 },
+  receiptLabel: { fontSize: 11.5, fontFamily: fonts.sansBold, color: colors.sageDeep },
   rowAmount: { fontSize: 17, fontFamily: fonts.sansExtra, color: colors.roseText },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  viewer: {
+    backgroundColor: colors.bg,
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  viewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  viewerTitle: { fontSize: 17, fontFamily: fonts.sansBold, color: colors.ink },
+  viewerSub: { fontSize: 13, fontFamily: fonts.sans, color: colors.inkSoft },
+  viewerClose: { paddingHorizontal: 12, paddingVertical: 8 },
+  viewerCloseText: { fontSize: 13, fontFamily: fonts.sansBold, color: colors.rose },
+  viewerImage: { width: '100%', height: 420, backgroundColor: colors.card },
 });
