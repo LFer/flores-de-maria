@@ -49,6 +49,8 @@ export interface Order {
   entrega?: string; // delivery date label, e.g. "20 jun"
   nota?: string;
   createdAt?: number;
+  updatedAt?: number;
+  updatedBy?: string | null;
   archived?: boolean;
   archivedAt?: number | null;
   archivedBy?: string | null;
@@ -69,6 +71,15 @@ export type NewOrderInput = {
   assignee: Assignee;
   entregado: boolean;
   cobrado: boolean;
+  entrega?: string;
+  nota?: string;
+  amount?: number;
+};
+
+export type UpdateOrderInput = {
+  name: string;
+  chica: number;
+  grande: number;
   entrega?: string;
   nota?: string;
   amount?: number;

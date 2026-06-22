@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -8,7 +8,7 @@ import { Stepper } from '../components/Stepper';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { DateField } from '../components/DateField';
 import { orderService } from '../services';
-import { PRICE } from '../types';
+import { PRICE, type Order } from '../types';
 import { shortDate } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { userDisplayName } from '../lib/userDisplay';
@@ -18,9 +18,42 @@ type CobroState = 'sin' | 'cobrado';
 
 const suggestedAmount = (chica: number, grande: number) => chica * PRICE.chica + grande * PRICE.grande;
 
-export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function parseEntregaDate(entrega: string | undefined): Date {
+  if (!entrega) return new Date();
+
+  const match = entrega.trim().toLocaleLowerCase().match(/^(\d{1,2})\s+([a-záéíóúñ]{3})$/i);
+  if (!match) return new Date();
+
+  const day = Number(match[1]);
+  const month = MONTHS.indexOf(match[2]);
+  if (!Number.isInteger(day) || month < 0) return new Date();
+
+  const year = new Date().getFullYear();
+  const parsed = new Date(year, month, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month || parsed.getDate() !== day) return new Date();
+
+  return parsed;
+}
+
+function orderItemQuantity(order: Order, itemId: 'chica' | 'grande'): number {
+  const item = order.items.find((candidate) => candidate.id === itemId);
+  return item && Number.isFinite(item.quantity) ? Math.max(0, item.quantity) : 0;
+}
+
+export function NuevoPedidoSheet({
+  visible,
+  onClose,
+  order,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  order?: Order | null;
+}) {
   const { user } = useAuth();
   const currentUserName = userDisplayName(user);
+  const editing = Boolean(order);
   const [cliente, setCliente] = useState('');
   const [chica, setChica] = useState(1);
   const [grande, setGrande] = useState(1);
@@ -31,19 +64,43 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
   const [nota, setNota] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const skipQuantityRecalc = useRef(false);
 
   // Changing the box quantities always recalculates the suggested importe,
   // overwriting whatever value is currently in the field.
   useEffect(() => {
+    if (skipQuantityRecalc.current) {
+      skipQuantityRecalc.current = false;
+      return;
+    }
     setImporte(String(suggestedAmount(chica, grande)));
   }, [chica, grande]);
 
-  // Clear any stale error when the sheet is reopened.
   useEffect(() => {
-    if (visible) setError(null);
-  }, [visible]);
+    if (!visible) return;
+
+    if (order) {
+      const nextChica = orderItemQuantity(order, 'chica');
+      const nextGrande = orderItemQuantity(order, 'grande');
+      skipQuantityRecalc.current = nextChica !== chica || nextGrande !== grande;
+      setCliente(order.name);
+      setChica(nextChica);
+      setGrande(nextGrande);
+      setImporte(String(order.totalAmount));
+      setFecha(parseEntregaDate(order.entrega));
+      setEntrega('ingresado');
+      setCobro('sin');
+      setNota(order.nota ?? '');
+      setError(null);
+      setBusy(false);
+      return;
+    }
+
+    reset();
+  }, [visible, order]);
 
   const reset = () => {
+    skipQuantityRecalc.current = false;
     setCliente('');
     setChica(1);
     setGrande(1);
@@ -53,6 +110,7 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
     setCobro('sin');
     setNota('');
     setError(null);
+    setBusy(false);
   };
 
   const onSave = async () => {
@@ -68,22 +126,37 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
     setError(null);
     setBusy(true);
     try {
-      await orderService.add({
-        name: cliente.trim() || 'Sin nombre',
-        chica,
-        grande,
-        assignee: currentUserName,
-        entregado: entrega === 'entregado',
-        cobrado: cobro === 'cobrado',
-        entrega: shortDate(fecha),
-        nota: nota.trim() || undefined,
-        amount,
-      });
+      if (order) {
+        await orderService.updateEditableOrder(order.id, {
+          name: cliente.trim() || 'Sin nombre',
+          chica,
+          grande,
+          entrega: shortDate(fecha),
+          nota: nota.trim() || undefined,
+          amount,
+        });
+      } else {
+        await orderService.add({
+          name: cliente.trim() || 'Sin nombre',
+          chica,
+          grande,
+          assignee: currentUserName,
+          entregado: entrega === 'entregado',
+          cobrado: cobro === 'cobrado',
+          entrega: shortDate(fecha),
+          nota: nota.trim() || undefined,
+          amount,
+        });
+      }
       // Only clear and close when the save succeeded.
       reset();
       onClose();
     } catch {
-      setError('No pudimos guardar el pedido. Probá de nuevo.');
+      setError(
+        order
+          ? 'Este pedido ya tiene entregas o cobros registrados y no se puede editar.'
+          : 'No pudimos guardar el pedido. Probá de nuevo.',
+      );
     } finally {
       setBusy(false);
     }
@@ -93,8 +166,8 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title="Nuevo pedido"
-      footer={<PrimaryButton label={busy ? 'Guardando…' : 'Guardar pedido'} onPress={onSave} disabled={busy} />}
+      title={editing ? 'Editar pedido' : 'Nuevo pedido'}
+      footer={<PrimaryButton label={busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Guardar pedido'} onPress={onSave} disabled={busy} />}
     >
       <ScrollView
         contentContainerStyle={styles.body}
@@ -131,29 +204,33 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
           </View>
         </View>
 
-        <View style={styles.field}>
-          <Label>Estado de entrega</Label>
-          <SegmentedControl
-            value={entrega}
-            onChange={setEntrega}
-            options={[
-              { label: 'Ingresado', value: 'ingresado' },
-              { label: 'Entregado', value: 'entregado' },
-            ]}
-          />
-        </View>
+        {!editing ? (
+          <>
+            <View style={styles.field}>
+              <Label>Estado de entrega</Label>
+              <SegmentedControl
+                value={entrega}
+                onChange={setEntrega}
+                options={[
+                  { label: 'Ingresado', value: 'ingresado' },
+                  { label: 'Entregado', value: 'entregado' },
+                ]}
+              />
+            </View>
 
-        <View style={styles.field}>
-          <Label>Estado de cobro</Label>
-          <SegmentedControl
-            value={cobro}
-            onChange={setCobro}
-            options={[
-              { label: 'Sin cobrar', value: 'sin' },
-              { label: 'Cobrado', value: 'cobrado' },
-            ]}
-          />
-        </View>
+            <View style={styles.field}>
+              <Label>Estado de cobro</Label>
+              <SegmentedControl
+                value={cobro}
+                onChange={setCobro}
+                options={[
+                  { label: 'Sin cobrar', value: 'sin' },
+                  { label: 'Cobrado', value: 'cobrado' },
+                ]}
+              />
+            </View>
+          </>
+        ) : null}
 
         <View style={styles.field}>
           <Label hint="(opcional)">Nota</Label>

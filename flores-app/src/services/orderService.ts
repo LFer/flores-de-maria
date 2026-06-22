@@ -18,6 +18,7 @@ import { buildCashMovement, cashService } from './cashService';
 import { MemoryCollection, genId } from './mock/store';
 import { seedOrders } from './mock/seed';
 import { PRICE } from '../types';
+import { canEditOrder } from '../lib/orderEditing';
 import type {
   DeliveryMovement,
   DeliveryStatus,
@@ -25,6 +26,7 @@ import type {
   Order,
   OrderItem,
   PaymentStatus,
+  UpdateOrderInput,
   Unsubscribe,
 } from '../types';
 
@@ -60,7 +62,7 @@ function deliveryStatus(items: OrderItem[]): DeliveryStatus {
   return 'partial';
 }
 
-function buildItems(input: NewOrderInput, delivered: boolean): OrderItem[] {
+function buildItems(input: Pick<NewOrderInput, 'chica' | 'grande' | 'cobrado'>, delivered: boolean): OrderItem[] {
   const definitions = [
     { id: 'chica', name: 'Caja Chica (16 brigadeiros)', quantity: input.chica, unitPrice: PRICE.chica },
     { id: 'grande', name: 'Caja Grande (30 brigadeiros)', quantity: input.grande, unitPrice: PRICE.grande },
@@ -73,6 +75,14 @@ function buildItems(input: NewOrderInput, delivered: boolean): OrderItem[] {
       deliveredQuantity: delivered ? item.quantity : 0,
       paidQuantity: input.cobrado ? item.quantity : 0,
     }));
+}
+
+function buildEditableItems(input: UpdateOrderInput): OrderItem[] {
+  return buildItems({ ...input, cobrado: false }, false).map((item) => ({
+    ...item,
+    deliveredQuantity: 0,
+    paidQuantity: 0,
+  }));
 }
 
 function initialDeliveryMovement(items: OrderItem[], createdAt: number): DeliveryMovement[] {
@@ -232,6 +242,42 @@ export const orderService = {
       deliveryMovements: [...order.deliveryMovements, movement],
       entregado: status === 'delivered',
     });
+  },
+
+  async updateEditableOrder(id: string, input: UpdateOrderInput): Promise<void> {
+    const order = await readOrder(id);
+    if (!order || !isCurrentOrder(order)) return;
+    if (!canEditOrder(order)) {
+      throw new Error('Order is no longer editable');
+    }
+
+    const items = buildEditableItems(input);
+    if (!items.length) throw new Error('Order requires at least one item');
+
+    const derivedAmount = items.reduce((sum, item) => sum + item.total, 0);
+    const totalAmount = input.amount ?? derivedAmount;
+    const patch: Partial<Order> = {
+      name: input.name,
+      items,
+      totalAmount,
+      paidAmount: 0,
+      deliveryStatus: 'pending',
+      paymentStatus: 'pending',
+      deliveryMovements: [],
+      paymentMovementIds: [],
+      entrega: input.entrega ?? '',
+      nota: input.nota ?? '',
+      chica: input.chica,
+      grande: input.grande,
+      amount: totalAmount,
+      entregado: false,
+      cobrado: false,
+      paymentMovementId: null,
+      updatedAt: Date.now(),
+      updatedBy: authService.currentUserId() ?? null,
+    };
+
+    await patchOrder(id, patch);
   },
 
   async registerPayment(id: string, paidItems: PaymentInput[]): Promise<void> {

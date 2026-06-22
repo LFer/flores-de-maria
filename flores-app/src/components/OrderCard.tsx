@@ -6,6 +6,7 @@ import { listCardShadow } from '../theme/shadows';
 import { Chip } from './Chip';
 import { orderAmount, type Order } from '../types';
 import { formatARS } from '../lib/format';
+import { canEditOrder } from '../lib/orderEditing';
 
 function itemsLabel(order: Order): string {
   if (!Array.isArray(order.items) || order.items.length === 0) return 'Sin cajas cargadas';
@@ -163,18 +164,20 @@ type Props = {
   order: Order;
   onRegisterDelivery: () => void;
   onRegisterPayment: () => void;
+  onEdit?: () => void;
   onArchive?: () => void;
   onUnarchive?: () => void;
   showUnarchive?: boolean;
 };
 
-export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArchive, onUnarchive, showUnarchive }: Props) {
+export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onEdit, onArchive, onUnarchive, showUnarchive }: Props) {
   const assigneeInitial = order.assignee.trim().charAt(0).toLocaleUpperCase() || '?';
   const assigneeIsMaria = order.assignee.trim().toLocaleLowerCase() === 'maría' || order.assignee.trim().toLocaleLowerCase() === 'maria';
   const deliveryDone = order.deliveryStatus === 'delivered';
   const paymentDone = order.paymentStatus === 'paid';
   const archived = order.archived === true;
   const canArchive = deliveryDone && paymentDone && !archived;
+  const editable = canEditOrder(order);
   const delivery = deliverySummary(order);
   const payment = paymentSummary(order);
   const amount = isValidMoney(orderAmount(order)) ? orderAmount(order) : 0;
@@ -234,6 +237,11 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArch
             </Pressable>
           ) : (
             <>
+              {editable && onEdit ? (
+                <Pressable onPress={onEdit} style={[styles.actionBtn, styles.editBtn, styles.editBtnCompact]}>
+                  <Text style={styles.editText}>Editar</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={onRegisterDelivery}
                 disabled={deliveryDone}
@@ -326,7 +334,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.petalBgSoft,
     borderColor: 'rgba(200,83,111,0.28)',
   },
+  editBtn: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+  },
+  editBtnCompact: {
+    flex: 0,
+    minWidth: 68,
+    paddingHorizontal: 12,
+  },
   actionText: { color: colors.sageDeep, fontSize: 12.5, fontFamily: fonts.sansBold },
   archiveText: { color: colors.roseText, fontSize: 12.5, fontFamily: fonts.sansBold },
+  editText: { color: colors.inkSoft, fontSize: 12.5, fontFamily: fonts.sansBold },
   actionTextDisabled: { color: colors.inkFaint },
 });

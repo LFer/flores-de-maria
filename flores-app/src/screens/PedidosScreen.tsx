@@ -58,6 +58,7 @@ export function PedidosScreen() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('activos');
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [deliverySheetOpen, setDeliverySheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,6 +85,11 @@ export function PedidosScreen() {
   const openPayment = (order: Order) => {
     setSelectedOrder(order);
     setPaymentSheetOpen(true);
+  };
+
+  const openEdit = (order: Order) => {
+    setSelectedOrder(order);
+    setEditSheetOpen(true);
   };
 
   const confirmArchive = (order: Order) => {
@@ -180,6 +186,7 @@ export function PedidosScreen() {
             order={item}
             onRegisterDelivery={() => openDelivery(item)}
             onRegisterPayment={() => openPayment(item)}
+            onEdit={() => openEdit(item)}
             onArchive={() => confirmArchive(item)}
             onUnarchive={() => unarchive(item)}
             showUnarchive={quickFilter === 'archivados'}
@@ -190,6 +197,11 @@ export function PedidosScreen() {
 
       <Fab onPress={() => setNewOrderOpen(true)} bottom={tabH + 18} />
       <NuevoPedidoSheet visible={newOrderOpen} onClose={() => setNewOrderOpen(false)} />
+      <NuevoPedidoSheet
+        visible={editSheetOpen}
+        onClose={() => setEditSheetOpen(false)}
+        order={selectedOrder}
+      />
       <DeliverySheet
         order={selectedOrder}
         visible={deliverySheetOpen}
