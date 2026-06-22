@@ -150,12 +150,17 @@ type Props = {
   order: Order;
   onRegisterDelivery: () => void;
   onRegisterPayment: () => void;
+  onArchive?: () => void;
+  onUnarchive?: () => void;
+  showUnarchive?: boolean;
 };
 
-export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Props) {
+export function OrderCard({ order, onRegisterDelivery, onRegisterPayment, onArchive, onUnarchive, showUnarchive }: Props) {
   const esMaria = order.assignee === CURRENT_USER;
   const deliveryDone = order.deliveryStatus === 'delivered';
   const paymentDone = order.paymentStatus === 'paid';
+  const archived = order.archived === true;
+  const canArchive = deliveryDone && paymentDone && !archived;
   const delivery = deliverySummary(order);
   const payment = paymentSummary(order);
   const amount = isValidMoney(orderAmount(order)) ? orderAmount(order) : 0;
@@ -181,30 +186,53 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Prop
       </View>
 
       <View style={styles.summary}>
+        {archived ? (
+          <View style={styles.archiveLine}>
+            <Chip label="Archivado" tone="done" />
+          </View>
+        ) : null}
         <SummaryRow summary={delivery} />
         <SummaryRow summary={payment} />
       </View>
 
-      <View style={styles.actions}>
-        <Pressable
-          onPress={onRegisterDelivery}
-          disabled={deliveryDone}
-          style={[styles.actionBtn, deliveryDone && styles.actionDisabled]}
-        >
-          <Text style={[styles.actionText, deliveryDone && styles.actionTextDisabled]}>
-            {deliveryDone ? 'Entrega completa' : 'Registrar entrega'}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onRegisterPayment}
-          disabled={paymentDone}
-          style={[styles.actionBtn, paymentDone && styles.actionDisabled]}
-        >
-          <Text style={[styles.actionText, paymentDone && styles.actionTextDisabled]}>
-            {paymentDone ? 'Cobro completo' : 'Registrar cobro'}
-          </Text>
-        </Pressable>
-      </View>
+      {archived ? (
+        showUnarchive && onUnarchive ? (
+          <View style={styles.actions}>
+            <Pressable onPress={onUnarchive} style={styles.actionBtn}>
+              <Text style={styles.actionText}>Desarchivar</Text>
+            </Pressable>
+          </View>
+        ) : null
+      ) : (
+        <View style={styles.actions}>
+          {canArchive && onArchive ? (
+            <Pressable onPress={onArchive} style={[styles.actionBtn, styles.archiveBtn]}>
+              <Text style={styles.archiveText}>Archivar</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                onPress={onRegisterDelivery}
+                disabled={deliveryDone}
+                style={[styles.actionBtn, deliveryDone && styles.actionDisabled]}
+              >
+                <Text style={[styles.actionText, deliveryDone && styles.actionTextDisabled]}>
+                  {deliveryDone ? 'Entrega completa' : 'Registrar entrega'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onRegisterPayment}
+                disabled={paymentDone}
+                style={[styles.actionBtn, paymentDone && styles.actionDisabled]}
+              >
+                <Text style={[styles.actionText, paymentDone && styles.actionTextDisabled]}>
+                  {paymentDone ? 'Cobro completo' : 'Registrar cobro'}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -235,6 +263,7 @@ const styles = StyleSheet.create({
   badgeLetter: { fontSize: 10.5, fontFamily: fonts.sansExtra },
   assigneeName: { fontSize: 12.5, fontFamily: fonts.sansSemi, color: 'rgba(45,42,40,0.6)' },
   summary: { gap: 8, marginTop: 12 },
+  archiveLine: { flexDirection: 'row' },
   summaryRow: { gap: 5 },
   summaryLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.sansSemi, color: colors.inkSoft },
@@ -262,6 +291,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.segment,
   },
+  archiveBtn: {
+    backgroundColor: colors.petalBgSoft,
+    borderColor: 'rgba(200,83,111,0.28)',
+  },
   actionText: { color: colors.sageDeep, fontSize: 12.5, fontFamily: fonts.sansBold },
+  archiveText: { color: colors.roseText, fontSize: 12.5, fontFamily: fonts.sansBold },
   actionTextDisabled: { color: colors.inkFaint },
 });

@@ -279,4 +279,28 @@ export const orderService = {
       paymentMovementId: status === 'paid' ? movementId : order.paymentMovementId ?? null,
     });
   },
+
+  async archive(id: string): Promise<void> {
+    const order = await readOrder(id);
+    if (!order || !isCurrentOrder(order)) return;
+    if (order.deliveryStatus !== 'delivered') throw new Error('Order must be fully delivered before archiving');
+    if (order.paymentStatus !== 'paid') throw new Error('Order must be fully paid before archiving');
+
+    await patchOrder(id, {
+      archived: true,
+      archivedAt: Date.now(),
+      archivedBy: authService.currentUserId() ?? null,
+    });
+  },
+
+  async unarchive(id: string): Promise<void> {
+    const order = await readOrder(id);
+    if (!order || !isCurrentOrder(order)) return;
+
+    await patchOrder(id, {
+      archived: false,
+      archivedAt: null,
+      archivedBy: null,
+    });
+  },
 };

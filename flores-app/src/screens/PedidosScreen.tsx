@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, FlatList, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -21,17 +21,21 @@ import { useAuth } from '../lib/auth';
 import { CURRENT_USER } from '../lib/constants';
 
 type Filter = 'todos' | 'mios';
-type QuickFilter = 'todos' | 'entrega' | 'cobro';
+type QuickFilter = 'activos' | 'entrega' | 'cobro' | 'archivados';
 
 const paymentBalance = (order: Order): number => Math.max(0, order.totalAmount - order.paidAmount);
 
 const QUICK_FILTERS: { label: string; value: QuickFilter }[] = [
-  { label: 'Todos', value: 'todos' },
-  { label: 'Por entregar', value: 'entrega' },
-  { label: 'Por cobrar', value: 'cobro' },
+  { label: 'Activos', value: 'activos' },
+  { label: 'Entrega', value: 'entrega' },
+  { label: 'Cobro', value: 'cobro' },
+  { label: 'Archivo', value: 'archivados' },
 ];
 
 function matchesQuickFilter(order: Order, quickFilter: QuickFilter): boolean {
+  const archived = order.archived === true;
+  if (quickFilter === 'archivados') return archived;
+  if (archived) return false;
   if (quickFilter === 'entrega') return order.deliveryStatus !== 'delivered';
   if (quickFilter === 'cobro') return order.paymentStatus !== 'paid';
   return true;
@@ -40,7 +44,8 @@ function matchesQuickFilter(order: Order, quickFilter: QuickFilter): boolean {
 function emptyMessage(quickFilter: QuickFilter): string {
   if (quickFilter === 'entrega') return 'No hay pedidos pendientes de entregar.';
   if (quickFilter === 'cobro') return 'No hay pedidos pendientes de cobrar.';
-  return 'No hay pedidos cargados todavía.';
+  if (quickFilter === 'archivados') return 'No hay pedidos archivados.';
+  return 'No hay pedidos activos.';
 }
 
 export function PedidosScreen() {
@@ -49,7 +54,7 @@ export function PedidosScreen() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<Filter>('todos');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('activos');
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [deliverySheetOpen, setDeliverySheetOpen] = useState(false);
@@ -65,6 +70,27 @@ export function PedidosScreen() {
   const openPayment = (order: Order) => {
     setSelectedOrder(order);
     setPaymentSheetOpen(true);
+  };
+
+  const confirmArchive = (order: Order) => {
+    Alert.alert('Archivar pedido', 'Este pedido ya está entregado y cobrado. ¿Querés archivarlo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Archivar',
+        style: 'destructive',
+        onPress: () => {
+          void orderService.archive(order.id).catch(() => {
+            Alert.alert('No se pudo archivar', 'El pedido no se pudo archivar. Probá nuevamente.');
+          });
+        },
+      },
+    ]);
+  };
+
+  const unarchive = (order: Order) => {
+    void orderService.unarchive(order.id).catch(() => {
+      Alert.alert('No se pudo desarchivar', 'El pedido no se pudo desarchivar. Probá nuevamente.');
+    });
   };
 
   const ownerFilteredOrders = filter === 'mios' ? orders.filter((order) => order.assignee === CURRENT_USER) : orders;
@@ -110,11 +136,7 @@ export function PedidosScreen() {
               />
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.quickFilters}
-            >
+            <View style={styles.quickFilters}>
               {QUICK_FILTERS.map((option) => {
                 const active = option.value === quickFilter;
                 return (
@@ -127,7 +149,7 @@ export function PedidosScreen() {
                   </Pressable>
                 );
               })}
-            </ScrollView>
+            </View>
           </View>
         }
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage(quickFilter)}</Text>}
@@ -136,6 +158,9 @@ export function PedidosScreen() {
             order={item}
             onRegisterDelivery={() => openDelivery(item)}
             onRegisterPayment={() => openPayment(item)}
+            onArchive={() => confirmArchive(item)}
+            onUnarchive={() => unarchive(item)}
+            showUnarchive={quickFilter === 'archivados'}
           />
         )}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
@@ -397,14 +422,15 @@ const styles = StyleSheet.create({
   ownerFilter: { marginTop: 12 },
   quickFilters: {
     flexDirection: 'row',
-    gap: 8,
-    paddingTop: 10,
-    paddingBottom: 2,
-    paddingHorizontal: 1,
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 2,
   },
   quickChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 4,
     borderRadius: 999,
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -414,7 +440,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.petalBgSoft,
     borderColor: 'rgba(200,83,111,0.24)',
   },
-  quickChipText: { fontSize: 12.5, fontFamily: fonts.sansBold, color: colors.inkSoft },
+  quickChipText: { fontSize: 12, fontFamily: fonts.sansBold, color: colors.inkSoft },
   quickChipTextActive: { color: colors.roseText },
   empty: {
     marginTop: 18,

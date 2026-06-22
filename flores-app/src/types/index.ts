@@ -49,6 +49,9 @@ export interface Order {
   entrega?: string; // delivery date label, e.g. "20 jun"
   nota?: string;
   createdAt?: number;
+  archived?: boolean;
+  archivedAt?: number | null;
+  archivedBy?: string | null;
   // Legacy fields from the first boolean-based order model. New UI and writes
   // use the item/status model above; these remain optional during transition.
   chica?: number;
