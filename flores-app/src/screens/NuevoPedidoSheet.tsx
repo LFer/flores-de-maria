@@ -92,7 +92,11 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
       title="Nuevo pedido"
       footer={<PrimaryButton label={busy ? 'Guardando…' : 'Guardar pedido'} onPress={onSave} disabled={busy} />}
     >
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.field}>
           <Label>Cliente</Label>
           <Input value={cliente} onChangeText={setCliente} placeholder="Ej. Susana" />
@@ -113,6 +117,7 @@ export function NuevoPedidoSheet({ visible, onClose }: { visible: boolean; onClo
               value={importe}
               onChangeText={(t) => setImporte(t.replace(/\D/g, ''))}
               keyboardType="number-pad"
+              returnKeyType="done"
               placeholder="$0"
             />
           </View>
@@ -167,7 +172,7 @@ function CajaRow({ title, value, onDec, onInc }: { title: string; value: number;
 }
 
 const styles = StyleSheet.create({
-  body: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 12, gap: 16 },
+  body: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 36, gap: 16 },
   field: { gap: 8 },
   row: { flexDirection: 'row', gap: 12 },
   error: { color: colors.rose, fontFamily: fonts.sansSemi, fontSize: 13 },

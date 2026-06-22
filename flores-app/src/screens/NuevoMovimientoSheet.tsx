@@ -59,7 +59,11 @@ export function NuevoMovimientoSheet({ visible, onClose }: { visible: boolean; o
       title="Nuevo movimiento"
       footer={<PrimaryButton label={busy ? 'Guardando…' : 'Guardar movimiento'} onPress={onSave} disabled={!canSave} />}
     >
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.field}>
           <Label>Tipo</Label>
           <SegmentedControl
@@ -88,7 +92,13 @@ export function NuevoMovimientoSheet({ visible, onClose }: { visible: boolean; o
 
         <View style={styles.field}>
           <Label>Monto</Label>
-          <Input value={monto} onChangeText={setMonto} placeholder="$0" keyboardType="number-pad" />
+          <Input
+            value={monto}
+            onChangeText={setMonto}
+            placeholder="$0"
+            keyboardType="number-pad"
+            returnKeyType="done"
+          />
         </View>
 
         <View style={styles.field}>
@@ -112,6 +122,6 @@ export function NuevoMovimientoSheet({ visible, onClose }: { visible: boolean; o
 }
 
 const styles = StyleSheet.create({
-  body: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 12, gap: 16 },
+  body: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 36, gap: 16 },
   field: { gap: 8 },
 });

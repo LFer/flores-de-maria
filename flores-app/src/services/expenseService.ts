@@ -35,60 +35,64 @@ export const expenseService = {
 
   /** Create an expense and its `expense` cash movement consistently. */
   async add(input: NewExpenseInput): Promise<void> {
-    const { comprobanteLocalUri, ...fields } = input;
-    const receiptUrl = comprobanteLocalUri
-      ? await storageService.uploadComprobante(comprobanteLocalUri)
-      : undefined;
+    try {
+      const { comprobanteLocalUri, ...fields } = input;
+      const receiptUrl = comprobanteLocalUri
+        ? await storageService.uploadComprobante(comprobanteLocalUri, input.comprobanteMimeType)
+        : undefined;
 
-    const responsibleName = fields.responsibleName ?? authService.currentUserName();
-    const responsibleId = fields.responsibleId ?? authService.currentUserId();
-    const description =
-      fields.detail && fields.detail !== '—' ? `${fields.name} · ${fields.detail}` : fields.name;
+      const responsibleName = fields.responsibleName ?? authService.currentUserName();
+      const responsibleId = fields.responsibleId ?? authService.currentUserId();
+      const description =
+        fields.detail && fields.detail !== '—' ? `${fields.name} · ${fields.detail}` : fields.name;
 
-    // Strip undefined for Firestore.
-    const expenseDoc: Record<string, unknown> = {
-      name: fields.name,
-      detail: fields.detail,
-      amount: fields.amount,
-      date: fields.date,
-      createdAt: Date.now(),
-    };
-    if (receiptUrl) expenseDoc.comprobanteUrl = receiptUrl;
-    if (responsibleName) expenseDoc.responsibleName = responsibleName;
-    if (responsibleId) expenseDoc.responsibleId = responsibleId;
+      // Strip undefined for Firestore.
+      const expenseDoc: Record<string, unknown> = {
+        name: fields.name,
+        detail: fields.detail,
+        amount: fields.amount,
+        date: fields.date,
+        createdAt: Date.now(),
+      };
+      if (receiptUrl) expenseDoc.comprobanteUrl = receiptUrl;
+      if (responsibleName) expenseDoc.responsibleName = responsibleName;
+      if (responsibleId) expenseDoc.responsibleId = responsibleId;
 
-    if (isFirebaseConfigured && db) {
-      const batch = writeBatch(db);
-      const expenseRef = doc(collection(db, COL));
-      const movementRef = doc(collection(db, 'cash_movements'));
-      batch.set(expenseRef, expenseDoc);
-      batch.set(
-        movementRef,
-        buildCashMovement({
-          type: 'expense',
-          direction: 'out',
-          amount: fields.amount,
-          description,
-          expenseId: expenseRef.id,
-          receiptUrl,
-          responsibleName,
-          responsibleId,
-        }),
-      );
-      await batch.commit();
-      return;
+      if (isFirebaseConfigured && db) {
+        const batch = writeBatch(db);
+        const expenseRef = doc(collection(db, COL));
+        const movementRef = doc(collection(db, 'cash_movements'));
+        batch.set(expenseRef, expenseDoc);
+        batch.set(
+          movementRef,
+          buildCashMovement({
+            type: 'expense',
+            direction: 'out',
+            amount: fields.amount,
+            description,
+            expenseId: expenseRef.id,
+            receiptUrl,
+            responsibleName,
+            responsibleId,
+          }),
+        );
+        await batch.commit();
+        return;
+      }
+
+      // Mock: write both collections sequentially.
+      const expenseId = genId('e');
+      mock.add({ id: expenseId, ...(expenseDoc as Omit<Expense, 'id'>) });
+      await cashService.createExpenseMovement({
+        expenseId,
+        amount: fields.amount,
+        description,
+        receiptUrl,
+        responsibleName,
+        responsibleId,
+      });
+    } catch (error) {
+      throw error;
     }
-
-    // Mock: write both collections sequentially.
-    const expenseId = genId('e');
-    mock.add({ id: expenseId, ...(expenseDoc as Omit<Expense, 'id'>) });
-    await cashService.createExpenseMovement({
-      expenseId,
-      amount: fields.amount,
-      description,
-      receiptUrl,
-      responsibleName,
-      responsibleId,
-    });
   },
 };

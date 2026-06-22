@@ -51,7 +51,7 @@ export function BottomSheet({ visible, onClose, title, children, footer }: Props
       </Animated.View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.kav}
         pointerEvents="box-none"
       >

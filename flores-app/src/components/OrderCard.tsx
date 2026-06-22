@@ -9,31 +9,141 @@ import { formatARS } from '../lib/format';
 import { CURRENT_USER } from '../lib/constants';
 
 function itemsLabel(order: Order): string {
-  return order.items
+  if (!Array.isArray(order.items) || order.items.length === 0) return 'Sin cajas cargadas';
+
+  const label = order.items
+    .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0)
     .map((item) => {
       const kind = item.id === 'chica' ? 'chica' : item.id === 'grande' ? 'grande' : item.name;
       return `${item.quantity} ${item.quantity === 1 ? kind : `${kind}s`}`;
     })
     .join(' · ');
+
+  return label || 'Sin cajas cargadas';
 }
 
-function deliveryLabel(order: Order): string {
-  if (order.deliveryStatus === 'delivered') return 'Entrega completa';
-  if (order.deliveryStatus === 'partial') return 'Entrega parcial';
-  return 'Entrega pendiente';
+type SummaryTone = 'done' | 'partial' | 'pending';
+
+type ProgressSummary = {
+  label: string;
+  chip: 'Pendiente' | 'Parcial' | 'Completo';
+  tone: SummaryTone;
+  progress: number;
+};
+
+function clampProgress(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
-function paymentLabel(order: Order): string {
-  if (order.paymentStatus === 'paid') return 'Cobro completo';
-  if (order.paymentStatus === 'partial') return 'Cobro parcial';
-  return 'Cobro pendiente';
+function isValidMoney(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
 }
 
-// Map a delivery/payment status to the Chip tone.
-function statusTone(status: 'pending' | 'partial' | 'delivered' | 'paid'): 'done' | 'partial' | 'pending' {
-  if (status === 'delivered' || status === 'paid') return 'done';
-  if (status === 'partial') return 'partial';
-  return 'pending';
+function deliverySummary(order: Order): ProgressSummary {
+  if (!Array.isArray(order.items) || order.items.length === 0) {
+    return { label: 'Entrega pendiente', chip: 'Pendiente', tone: 'pending', progress: 0 };
+  }
+
+  let totalBoxes = 0;
+  let deliveredBoxes = 0;
+
+  for (const item of order.items) {
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) continue;
+    const deliveredQuantity = item.deliveredQuantity ?? 0;
+    if (!Number.isFinite(deliveredQuantity) || deliveredQuantity < 0) {
+      return { label: 'Entrega pendiente', chip: 'Pendiente', tone: 'pending', progress: 0 };
+    }
+
+    totalBoxes += item.quantity;
+    deliveredBoxes += Math.min(deliveredQuantity, item.quantity);
+  }
+
+  if (totalBoxes <= 0) {
+    return { label: 'Entrega pendiente', chip: 'Pendiente', tone: 'pending', progress: 0 };
+  }
+
+  deliveredBoxes = Math.min(deliveredBoxes, totalBoxes);
+  const pendingBoxes = Math.max(0, totalBoxes - deliveredBoxes);
+  const progress = clampProgress(deliveredBoxes / totalBoxes);
+
+  if (progress >= 1) {
+    return { label: 'Entrega completa', chip: 'Completo', tone: 'done', progress: 1 };
+  }
+
+  if (deliveredBoxes > 0) {
+    return {
+      label: `Entregado: ${deliveredBoxes} de ${totalBoxes} cajas · Faltan entregar: ${pendingBoxes} cajas`,
+      chip: 'Parcial',
+      tone: 'partial',
+      progress,
+    };
+  }
+
+  return {
+    label: `Faltan entregar: ${totalBoxes} cajas`,
+    chip: 'Pendiente',
+    tone: 'pending',
+    progress: 0,
+  };
+}
+
+function paymentSummary(order: Order): ProgressSummary {
+  if (!isValidMoney(order.totalAmount) || !Number.isFinite(order.paidAmount) || order.paidAmount < 0) {
+    return { label: 'Cobro pendiente', chip: 'Pendiente', tone: 'pending', progress: 0 };
+  }
+
+  const totalAmount = order.totalAmount;
+  const paidAmount = Math.min(order.paidAmount, totalAmount);
+  const pendingAmount = Math.max(0, totalAmount - paidAmount);
+  const progress = clampProgress(paidAmount / totalAmount);
+
+  if (progress >= 1) {
+    return { label: 'Cobro completo', chip: 'Completo', tone: 'done', progress: 1 };
+  }
+
+  if (paidAmount > 0) {
+    return {
+      label: `Cobrado: ${formatARS(paidAmount)} de ${formatARS(totalAmount)} · Resta cobrar: ${formatARS(pendingAmount)}`,
+      chip: 'Parcial',
+      tone: 'partial',
+      progress,
+    };
+  }
+
+  return {
+    label: `Resta cobrar: ${formatARS(totalAmount)}`,
+    chip: 'Pendiente',
+    tone: 'pending',
+    progress: 0,
+  };
+}
+
+function progressColor(tone: SummaryTone): string {
+  if (tone === 'done') return colors.sage;
+  if (tone === 'partial') return colors.amberSoft;
+  return colors.petalSoft;
+}
+
+function SummaryRow({ summary }: { summary: ProgressSummary }) {
+  return (
+    <View style={styles.summaryRow}>
+      <View style={styles.summaryLine}>
+        <Text style={styles.summaryText} numberOfLines={2}>
+          {summary.label}
+        </Text>
+        <Chip label={summary.chip} tone={summary.tone} />
+      </View>
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${summary.progress * 100}%`, backgroundColor: progressColor(summary.tone) },
+          ]}
+        />
+      </View>
+    </View>
+  );
 }
 
 type Props = {
@@ -46,6 +156,9 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Prop
   const esMaria = order.assignee === CURRENT_USER;
   const deliveryDone = order.deliveryStatus === 'delivered';
   const paymentDone = order.paymentStatus === 'paid';
+  const delivery = deliverySummary(order);
+  const payment = paymentSummary(order);
+  const amount = isValidMoney(orderAmount(order)) ? orderAmount(order) : 0;
 
   return (
     <View style={styles.card}>
@@ -55,7 +168,7 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Prop
           <Text style={styles.detail}>{itemsLabel(order)}</Text>
         </View>
         <View style={styles.right}>
-          <Text style={styles.amount}>{formatARS(orderAmount(order))}</Text>
+          <Text style={styles.amount}>{formatARS(amount)}</Text>
           <View style={styles.assignee}>
             <View style={[styles.badge, { backgroundColor: esMaria ? colors.petalBg : colors.sageBg }]}>
               <Text style={[styles.badgeLetter, { color: esMaria ? colors.roseText : colors.sageDeep }]}>
@@ -67,9 +180,9 @@ export function OrderCard({ order, onRegisterDelivery, onRegisterPayment }: Prop
         </View>
       </View>
 
-      <View style={styles.chips}>
-        <Chip label={deliveryLabel(order)} tone={statusTone(order.deliveryStatus)} />
-        <Chip label={paymentLabel(order)} tone={statusTone(order.paymentStatus)} />
+      <View style={styles.summary}>
+        <SummaryRow summary={delivery} />
+        <SummaryRow summary={payment} />
       </View>
 
       <View style={styles.actions}>
@@ -121,7 +234,20 @@ const styles = StyleSheet.create({
   },
   badgeLetter: { fontSize: 10.5, fontFamily: fonts.sansExtra },
   assigneeName: { fontSize: 12.5, fontFamily: fonts.sansSemi, color: 'rgba(45,42,40,0.6)' },
-  chips: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  summary: { gap: 8, marginTop: 12 },
+  summaryRow: { gap: 5 },
+  summaryLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  summaryText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.sansSemi, color: colors.inkSoft },
+  progressTrack: {
+    height: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: colors.segment,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
   actions: { flexDirection: 'row', gap: 8, marginTop: 10 },
   actionBtn: {
     flex: 1,

@@ -87,6 +87,7 @@ export interface Expense {
 // a Storage `comprobanteUrl`.
 export type NewExpenseInput = Omit<Expense, 'id' | 'createdAt' | 'comprobanteUrl'> & {
   comprobanteLocalUri?: string;
+  comprobanteMimeType?: string;
 };
 
 // ── Cash ledger ──────────────────────────────────────────────────
