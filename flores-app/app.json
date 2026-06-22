@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Flores de María",
-    "slug": "flores-app",
+    "slug": "flores-de-maria",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,6 +33,12 @@
         }
       ],
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "owner": "lfere",
+    "extra": {
+      "eas": {
+        "projectId": "d72d978a-0420-4f4c-8146-3f9e466bc2b3"
+      }
+    }
   }
 }
