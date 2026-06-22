@@ -6,6 +6,7 @@ import {
   addDoc,
   updateDoc,
   getDoc,
+  getDocs,
   doc,
   query,
   orderBy,
@@ -124,6 +125,18 @@ export const orderService = {
       });
     }
     return mock.subscribe((orders) => cb(orders.filter(isCurrentOrder)));
+  },
+
+  /** One-shot read for manual refresh. Does not create a realtime listener. */
+  async listOnce(): Promise<Order[]> {
+    if (isFirebaseConfigured && db) {
+      const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      return snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<Order, 'id'>) }))
+        .filter(isCurrentOrder);
+    }
+    return mock.snapshot().filter(isCurrentOrder);
   },
 
   async add(input: NewOrderInput): Promise<void> {

@@ -7,6 +7,7 @@ import {
   collection,
   onSnapshot,
   doc,
+  getDocs,
   writeBatch,
   query,
   orderBy,
@@ -31,6 +32,16 @@ export const expenseService = {
       });
     }
     return mock.subscribe(cb);
+  },
+
+  /** One-shot read for manual refresh. Does not create a realtime listener. */
+  async listOnce(): Promise<Expense[]> {
+    if (isFirebaseConfigured && db) {
+      const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Expense, 'id'>) }));
+    }
+    return mock.snapshot();
   },
 
   /** Create an expense and its `expense` cash movement consistently. */

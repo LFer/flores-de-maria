@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -24,8 +24,21 @@ export function CajaScreen() {
   const tabH = useBottomTabBarHeight();
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => cashService.listCashMovements(setMovements), []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const freshMovements = await cashService.listCashMovementsOnce();
+      setMovements(freshMovements);
+    } catch (error) {
+      console.error('[CajaScreen] refresh failed', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const summary = useMemo(() => cashService.getCashSummary(movements), [movements]);
 
@@ -36,6 +49,14 @@ export function CajaScreen() {
         keyExtractor={(m) => m.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 96 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.rose}
+            colors={[colors.rose]}
+          />
+        }
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
             <View style={styles.titleRow}>

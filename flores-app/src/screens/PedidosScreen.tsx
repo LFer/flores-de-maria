@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, FlatList, ScrollView, StyleSheet, Pressable, Alert, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -59,8 +59,21 @@ export function PedidosScreen() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [deliverySheetOpen, setDeliverySheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => orderService.subscribe(setOrders), []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const freshOrders = await orderService.listOnce();
+      setOrders(freshOrders);
+    } catch (error) {
+      console.error('[PedidosScreen] refresh failed', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const openDelivery = (order: Order) => {
     setSelectedOrder(order);
@@ -105,6 +118,14 @@ export function PedidosScreen() {
         keyExtractor={(order) => order.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 96 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.rose}
+            colors={[colors.rose]}
+          />
+        }
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
             <Text style={styles.greeting}>Hola, {user?.displayName?.trim() || 'María'}</Text>

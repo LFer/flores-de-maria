@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, Modal, Image } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, Modal, Image, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { colors } from '../theme/colors';
@@ -18,8 +18,21 @@ export function GastosScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [receipt, setReceipt] = useState<Expense | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => expenseService.subscribe(setExpenses), []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const freshExpenses = await expenseService.listOnce();
+      setExpenses(freshExpenses);
+    } catch (error) {
+      console.error('[GastosScreen] refresh failed', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const totalGastos = expenses.reduce((s, e) => s + e.amount, 0);
 
@@ -30,6 +43,14 @@ export function GastosScreen() {
         keyExtractor={(e) => e.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabH + 96 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.rose}
+            colors={[colors.rose]}
+          />
+        }
         ListHeaderComponent={
           <View style={{ paddingTop: insets.top + 8 }}>
             <View style={styles.titleRow}>

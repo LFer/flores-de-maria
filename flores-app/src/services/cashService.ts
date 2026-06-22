@@ -8,6 +8,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDocs,
   query,
   orderBy,
 } from 'firebase/firestore';
@@ -56,6 +57,16 @@ export const cashService = {
       });
     }
     return mock.subscribe(cb);
+  },
+
+  /** One-shot ledger read for manual refresh. Does not create a realtime listener. */
+  async listCashMovementsOnce(): Promise<CashMovement[]> {
+    if (isFirebaseConfigured && db) {
+      const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<CashMovement, 'id'>) }));
+    }
+    return mock.snapshot();
   },
 
   /** Create one movement; returns the new doc id. */
