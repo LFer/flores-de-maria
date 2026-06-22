@@ -2,9 +2,8 @@
 // Firebase-backed when configured; in the mock it just echoes the local URI so
 // the UI can still preview the picked image.
 import * as FileSystem from 'expo-file-system/legacy';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL } from 'firebase/storage';
 import { storage, isFirebaseConfigured, auth } from './firebaseService';
-import { authService } from './authService';
 
 function fileExtensionFromMimeType(mimeType?: string): string {
   if (!mimeType) return 'jpg';
@@ -30,57 +29,101 @@ function errorDetails(error: unknown): { code?: string; message?: string } {
   return {};
 }
 
-async function readBase64FromUri(uri: string, ext: string): Promise<string> {
-  const info = await FileSystem.getInfoAsync(uri);
-  if (info.exists) {
-    return FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-  }
+function storageBucket(): string {
+  return process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'flores-de-maria.firebasestorage.app';
+}
 
-  if (!FileSystem.cacheDirectory) {
-    throw new Error('No se pudo leer el comprobante y no hay cacheDirectory disponible.');
-  }
-
-  const cacheUri = `${FileSystem.cacheDirectory}receipt-${Date.now()}.${ext}`;
-  await FileSystem.copyAsync({ from: uri, to: cacheUri });
-  const cachedInfo = await FileSystem.getInfoAsync(cacheUri);
-  if (!cachedInfo.exists) {
-    throw new Error('No se pudo copiar el comprobante a cache para leerlo.');
-  }
-
-  return FileSystem.readAsStringAsync(cacheUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+function downloadUrlFromToken(bucket: string, path: string, token: string): string {
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media&token=${encodeURIComponent(token)}`;
 }
 
 export const storageService = {
   /** Upload a comprobante image and return its download URL. */
   async uploadComprobante(localUri: string, mimeType?: string): Promise<string> {
     if (isFirebaseConfigured && storage) {
-      const uid = auth?.currentUser?.uid ?? authService.currentUserId();
+      const currentUser = auth?.currentUser;
+      const uid = currentUser?.uid;
       const ext = fileExtensionFromMimeType(mimeType);
       const path = uid ? `comprobantes/${uid}/${Date.now()}.${ext}` : undefined;
+      const bucket = storageBucket();
 
       try {
-        console.error('[storageService] uploadReceipt start', {
+        console.log('[storageService] uploadReceipt start', {
           uri: localUri,
           mimeType,
           ext,
           path,
-          uid: auth?.currentUser?.uid ?? null,
+          uid: uid ?? null,
+          bucket,
         });
 
-        if (!uid) {
+        if (!currentUser || !uid) {
           throw new Error('No hay usuario autenticado para subir el comprobante.');
         }
+        if (!path) {
+          throw new Error('No se pudo construir el path del comprobante.');
+        }
 
-        const base64 = await readBase64FromUri(localUri, ext);
-        const storageRef = ref(storage, path);
-        await uploadString(storageRef, base64, 'base64', {
-          contentType: mimeType || 'image/jpeg',
+        const idToken = await currentUser.getIdToken();
+        const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(path)}`;
+        console.log('[storageService] uploadReceipt token ready', {
+          uri: localUri,
+          path,
+          uid,
+          bucket,
         });
-        return await getDownloadURL(storageRef);
+
+        const response = await FileSystem.uploadAsync(uploadUrl, localUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            'Content-Type': mimeType || 'image/jpeg',
+          },
+        });
+        console.log('[storageService] uploadReceipt response', {
+          uri: localUri,
+          path,
+          uid,
+          bucket,
+          status: response.status,
+        });
+
+        if (response.status < 200 || response.status >= 300) {
+          console.error('[storageService] uploadReceipt HTTP failed', {
+            uri: localUri,
+            mimeType,
+            ext,
+            path,
+            uid,
+            bucket,
+            status: response.status,
+            body: response.body,
+          });
+          throw new Error(`No se pudo subir el comprobante. Firebase Storage respondió ${response.status}.`);
+        }
+
+        const responseJson = JSON.parse(response.body || '{}') as { downloadTokens?: string };
+        const token = responseJson.downloadTokens?.split(',')[0];
+        if (token) {
+          const downloadURL = downloadUrlFromToken(bucket, path, token);
+          console.log('[storageService] uploadReceipt success', {
+            path,
+            uid,
+            bucket,
+            usedToken: true,
+          });
+          return downloadURL;
+        }
+
+        const downloadURL = await getDownloadURL(ref(storage, path));
+        console.log('[storageService] uploadReceipt success', {
+          path,
+          uid,
+          bucket,
+          usedToken: false,
+        });
+        return downloadURL;
       } catch (error) {
         const details = errorDetails(error);
         console.error('[storageService] uploadReceipt failed', {
@@ -88,7 +131,8 @@ export const storageService = {
           mimeType,
           ext,
           path,
-          uid: auth?.currentUser?.uid ?? null,
+          uid: uid ?? null,
+          bucket,
           code: details.code,
           message: details.message,
           error,
